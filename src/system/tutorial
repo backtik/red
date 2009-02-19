@@ -1,0 +1,13 @@
+EXEC_TAG needs special handling
+leave original /* */-style comments in place
+anything mentioning threads needs special handling
+check with me for anything with "st" or "ST" in it
+replace rb_ary_new2(some_length) with rb_ary_new() and make a note
+most type declarations can be replaced with "var"; check with me
+put single-line "ifs" on one line: "if (foo) { bar; }"; "ifs" should ALWAYS have brackets
+RXXX() typecast macros can be removed completely: RCLASS(klass)->foo #=> klass.foo
+ ^^ 1 exception ~ RBASIC must be converted: RBASIC(obj).flags #=> obj.basic.flags
+comparisons with 0 must use eqq (e.g "(foo === 0)", "(foo !== 0)")
+replace "st_init_numtable()" with "{}"
+replace "RARRAY(ary)->len" with "ary.ptr.length"
+don't add_function "rb_safe_level"
