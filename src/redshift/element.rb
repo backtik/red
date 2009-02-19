@@ -13,16 +13,6 @@ class Red::MethodCompiler
       END
     end
     
-    # 
-    def elem_find
-      add_function :rb_get_element_by_id_string
-      <<-END
-        function elem_find(klass, str) {
-          return rb_get_element_by_id_string(str.ptr);
-        }
-      END
-    end
-    
     # complete
     def elem_eq
       <<-END
@@ -91,6 +81,18 @@ class Red::MethodCompiler
     end
     
     # complete
+    def elem_s_find
+      add_function :rb_get_element_by_id_string, :rb_get_elements_array
+      <<-END
+        function elem_s_find(klass, str) {
+          var string = str.ptr;
+          if (string.match(/^#[0-9a-zA-z_\\-]+$/)) { return rb_get_element_by_id_string(string); }
+          return rb_get_elements_array(string);
+        }
+      END
+    end
+    
+    # complete
     def elem_to_s
       add_function :rb_str_new
       <<-END
@@ -111,7 +113,22 @@ class Red::MethodCompiler
       add_function :rb_element_wrapper
       <<-END
         function rb_get_element_by_id_string(name) {
-          return rb_element_wrapper(document.getElementById(name));
+          return rb_element_wrapper(Sizzle(name)[0]);
+        }
+      END
+    end
+    
+    # complete
+    def rb_get_elements_array
+      add_function :rb_ary_new, :rb_ary_push, :rb_element_wrapper
+      <<-END
+        function rb_get_elements_array(string) {
+          var src = Sizzle(string);
+          var ary = rb_ary_new();
+          for (var i = 0, l = src.length; i < l; i++) {
+            rb_ary_push(ary, rb_element_wrapper(src[i]));
+          }
+          return ary;
         }
       END
     end
