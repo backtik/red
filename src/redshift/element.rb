@@ -13,6 +13,15 @@ class Red::MethodCompiler
       END
     end
     
+    def elem_children
+      add_function :rb_dom_walk
+      <<-END
+        function elem_children(elem) {
+          return rb_dom_walk(elem.ptr, 'nextSibling', 'firstChild', true);
+        }
+      END
+    end
+    
     # complete
     def elem_eq
       <<-END

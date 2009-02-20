@@ -580,6 +580,13 @@ class Red::MethodCompiler
       END
     end
     
+    def children
+      $mc.add_function :elem_children
+      <<-END
+        rb_define_method(rb_cElement, "children", elem_children, 0);
+      END
+    end
+    
     def choice
       $mc.add_function :rb_ary_choice
       <<-END

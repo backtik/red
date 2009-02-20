@@ -1,6 +1,4 @@
 Document.ready? do
-  elem = Document['#div-element-1']
-  elems = Element.find('.f')
-  puts elem
-  puts elems
+  elem = Element.find('#div-element-1')
+  elem.children.inspect
 end
