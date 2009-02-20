@@ -1,4 +1,5 @@
 Document.ready? do
   elem = Element.find('#div-element-1')
-  elem.children.inspect
+  puts elem.first_child
+  puts elem.last_child
 end

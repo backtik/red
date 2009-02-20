@@ -104,8 +104,10 @@ class Red::MethodCompiler
         function rb_dom_walk(fromElement, path, startRelation, allBool) {
           var el = fromElement[startRelation || path], ary = rb_ary_new();
           while (el) {
-            if (!allBool) { return rb_element_wrapper(el); }
-            rb_ary_push(ary, rb_element_wrapper(el));
+            if (el.nodeType == 1) {
+              if (!allBool) { return rb_element_wrapper(el); }
+              rb_ary_push(ary, rb_element_wrapper(el));
+            }
             el = el[path];
           }
           return allBool ? ary : Qnil;

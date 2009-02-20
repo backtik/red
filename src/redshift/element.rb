@@ -40,6 +40,15 @@ class Red::MethodCompiler
       END
     end
     
+    def elem_first_child
+      add_function :rb_dom_walk
+      <<-END
+        function elem_first_child(elem) {
+          return rb_dom_walk(elem.ptr, 'nextSibling', 'firstChild', false);
+        }
+      END
+    end
+    
     # INCOMPLETE
     def elem_initialize
       add_function :rb_id2name
@@ -85,6 +94,15 @@ class Red::MethodCompiler
             }
           }
           return elem;
+        }
+      END
+    end
+    
+    def elem_last_child
+      add_function :rb_dom_walk
+      <<-END
+        function elem_last_child(elem) {
+          return rb_dom_walk(elem.ptr, 'previousSibling', 'lastChild', false);
         }
       END
     end

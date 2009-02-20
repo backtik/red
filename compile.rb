@@ -1284,6 +1284,13 @@ class Red::MethodCompiler
       END
     end
     
+    def first_child
+      $mc.add_function :elem_first_child
+      <<-END
+        rb_define_method(rb_cElement, "first_child", elem_first_child, 0);
+      END
+    end
+    
     def flatten
       $mc.add_function :rb_ary_flatten
       <<-END
@@ -1734,6 +1741,13 @@ class Red::MethodCompiler
       <<-END
         rb_define_method(rb_cRange, "last", range_last, 0);
         rb_define_method(rb_cArray, "last", rb_ary_last, -1);
+      END
+    end
+    
+    def last_child
+      $mc.add_function :elem_last_child
+      <<-END
+        rb_define_method(rb_cElement, "last_child", elem_last_child, 0);
       END
     end
     
