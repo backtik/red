@@ -40,6 +40,7 @@ class Red::MethodCompiler
       END
     end
     
+    # complete
     def elem_first_child
       add_function :rb_dom_walk
       <<-END
@@ -98,11 +99,72 @@ class Red::MethodCompiler
       END
     end
     
+    # complete
     def elem_last_child
       add_function :rb_dom_walk
       <<-END
         function elem_last_child(elem) {
           return rb_dom_walk(elem.ptr, 'previousSibling', 'lastChild', false);
+        }
+      END
+    end
+    
+    # complete
+    def elem_next_element
+      add_function :rb_dom_walk
+      <<-END
+        function elem_next_element(elem) {
+          return rb_dom_walk(elem.ptr, 'nextSibling', null, false);
+        }
+      END
+    end
+    
+    # complete
+    def elem_next_elements
+      add_function :rb_dom_walk
+      <<-END
+        function elem_next_elements(elem) {
+          return rb_dom_walk(elem.ptr, 'nextSibling', null, true);
+        }
+      END
+    end
+    
+    # complete
+    def elem_parent
+      add_function :rb_dom_walk
+      <<-END
+        function elem_parent(elem) {
+          return rb_dom_walk(elem.ptr, 'parentNode', null, false);
+        }
+      END
+    end
+    
+    # complete
+    def elem_parents
+      add_function :rb_dom_walk
+      <<-END
+        function elem_parents(elem) {
+          return rb_dom_walk(elem.ptr, 'parentNode', null, true);
+        }
+      END
+    end
+    
+    # complete
+    def elem_previous_element
+      add_function :rb_dom_walk
+      <<-END
+        function elem_previous_element(elem) {
+          return rb_dom_walk(elem.ptr, 'previousSibling', null, false);
+        }
+      END
+    end
+    
+    # complete
+    def elem_previous_elements
+      add_function :rb_dom_walk
+      <<-END
+        function elem_previous_elements(elem) {
+          return rb_dom_walk(elem.ptr, 'previousSibling', null, true);
         }
       END
     end

@@ -2033,6 +2033,20 @@ class Red::MethodCompiler
       END
     end
     
+    def next_element
+      $mc.add_function :elem_next_element
+      <<-END
+        rb_define_method(rb_cElement, "next_element", elem_next_element, 0);
+      END
+    end
+    
+    def next_elements
+      $mc.add_function :elem_next_elements
+      <<-END
+        rb_define_method(rb_cElement, "next_elements", elem_next_elements, 0);
+      END
+    end
+    
     def nil?
       $mc.add_function :rb_true
       <<-END
@@ -2120,6 +2134,20 @@ class Red::MethodCompiler
       END
     end
     
+    def parent
+      $mc.add_function :elem_parent
+      <<-END
+        rb_define_method(rb_cElement, "parent", elem_parent, 0);
+      END
+    end
+    
+    def parents
+      $mc.add_function :elem_parents
+      <<-END
+        rb_define_method(rb_cElement, "parents", elem_parents, 0);
+      END
+    end
+    
     def partition
       $mc.add_function :enum_partition, :rb_str_partition
       <<-END
@@ -2181,6 +2209,20 @@ class Red::MethodCompiler
       $mc.add_function :rb_f_presto_p, :rb_define_global_function
       <<-END
         rb_define_global_function("presto?", rb_f_presto_p, -1);
+      END
+    end
+    
+    def previous_element
+      $mc.add_function :elem_previous_element
+      <<-END
+        rb_define_method(rb_cElement, "previous_element", elem_previous_element, 0);
+      END
+    end
+    
+    def previous_elements
+      $mc.add_function :elem_previous_elements
+      <<-END
+        rb_define_method(rb_cElement, "previous_element", elem_previous_elements, 0);
       END
     end
     
