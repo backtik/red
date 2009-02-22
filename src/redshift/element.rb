@@ -40,6 +40,18 @@ class Red::MethodCompiler
       END
     end
     
+    def elem_find
+      add_function :rb_get_element_by_id_string, :rb_get_elements_array
+      <<-END
+        function elem_find(elem, str) {
+          var element = elem.ptr;
+          var string  = str.ptr;
+          if (string.match(/^#[0-9a-zA-z_\\-]+$/)) { return rb_get_element_by_id_string(string, element); }
+          return rb_get_elements_array(string, element);
+        }
+      END
+    end
+    
     # complete
     def elem_first_child
       add_function :rb_dom_walk
@@ -201,8 +213,8 @@ class Red::MethodCompiler
     def rb_get_element_by_id_string
       add_function :rb_element_wrapper
       <<-END
-        function rb_get_element_by_id_string(name) {
-          return rb_element_wrapper(Sizzle(name)[0]);
+        function rb_get_element_by_id_string(name, scope) {
+          return rb_element_wrapper(Sizzle(name, scope)[0]);
         }
       END
     end
@@ -211,8 +223,8 @@ class Red::MethodCompiler
     def rb_get_elements_array
       add_function :rb_ary_new, :rb_ary_push, :rb_element_wrapper
       <<-END
-        function rb_get_elements_array(string) {
-          var src = Sizzle(string);
+        function rb_get_elements_array(string, scope) {
+          var src = Sizzle(string, scope);
           var ary = rb_ary_new();
           for (var i = 0, l = src.length; i < l; i++) {
             rb_ary_push(ary, rb_element_wrapper(src[i]));

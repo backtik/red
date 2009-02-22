@@ -1246,10 +1246,13 @@ class Red::MethodCompiler
     end
     
     def find
-      $mc.add_functions :enum_find, :elem_s_find, :rb_define_singleton_method
+      $mc.add_functions :doc_s_find, :enum_find, :elem_s_find, :elem_find, :rb_define_singleton_method
       <<-END
         rb_define_method(rb_mEnumerable, "find", enum_find, -1);
+        rb_define_method(rb_cElement, "find", elem_find, 1);
         rb_define_singleton_method(rb_cElement, "find", elem_s_find, 1);
+        rb_define_singleton_method(rb_mDocument, "find", doc_s_find, 1);
+        
       END
     end
     

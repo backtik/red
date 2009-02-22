@@ -1,11 +1,17 @@
 Document.ready? do
-  elem = Element.find('#div-element-1')
-  puts elem.parent
+  elem1 = Element.find('#div-element-1')
+  elem2 = Document.find('#div-element-1')
+  puts elem1
+  puts elem2
+  
+  puts elem1.find('.f')
+  
+  # puts elem.parent
   # puts elem.parents
-  puts elem.next_element
+  # puts elem.next_element
   # puts elem.next_elements
-  puts elem.previous_element
+  # puts elem.previous_element
   # puts elem.previous_elements
-  puts elem.first_child
-  puts elem.last_child
+  # puts elem.first_child
+  # puts elem.last_child
 end
