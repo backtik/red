@@ -1,13 +1,6 @@
 class Red::MethodCompiler
   # INCOMPLETE
   module Document
-    # EMPTY
-    def doc_aref
-      <<-END
-        function doc_aref(argc, argv, doc) {}
-      END
-    end
-    
     # complete
     def doc_body
       add_function :rb_element_wrapper
@@ -45,17 +38,6 @@ class Red::MethodCompiler
           return str;
         }
       END
-    end
-    
-    def doc_s_find
-      # add_function :rb_get_element_by_id_string, :rb_get_elements_array
-      # <<-END
-      #   function doc_s_find(klass, str) {
-      #     var string = str.ptr;
-      #     if (string.match(/^#[0-9a-zA-z_\\-]+$/)) { return rb_get_element_by_id_string(string, document); }
-      #     return rb_get_elements_array(string, document);
-      #   }
-      # END
     end
     
     # complete
@@ -108,7 +90,7 @@ class Red::MethodCompiler
       END
     end
     
-    # EMPTY
+    # complete
     def rb_dom_walk
       add_function :rb_ary_new, :rb_ary_push, :rb_element_wrapper
       <<-END
