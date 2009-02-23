@@ -40,6 +40,7 @@ class Red::MethodCompiler
       END
     end
     
+    # complete
     def elem_find
       add_function :rb_get_element_by_id_string, :rb_get_elements_array
       <<-END

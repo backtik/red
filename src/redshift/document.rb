@@ -48,14 +48,14 @@ class Red::MethodCompiler
     end
     
     def doc_s_find
-      add_function :rb_get_element_by_id_string, :rb_get_elements_array
-      <<-END
-        function doc_s_find(klass, str) {
-          var string = str.ptr;
-          if (string.match(/^#[0-9a-zA-z_\\-]+$/)) { return rb_get_element_by_id_string(string, document); }
-          return rb_get_elements_array(string, document);
-        }
-      END
+      # add_function :rb_get_element_by_id_string, :rb_get_elements_array
+      # <<-END
+      #   function doc_s_find(klass, str) {
+      #     var string = str.ptr;
+      #     if (string.match(/^#[0-9a-zA-z_\\-]+$/)) { return rb_get_element_by_id_string(string, document); }
+      #     return rb_get_elements_array(string, document);
+      #   }
+      # END
     end
     
     # complete

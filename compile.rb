@@ -269,10 +269,11 @@ class Red::MethodCompiler
       $mc.add_function :method_call, :rb_proc_call, :rb_hash_s_create,
                        :rb_hash_aref, :rb_define_singleton_method,
                        :rb_str_aref_m, :rb_ary_s_create, :rb_ary_aref,
-                       :fix_aref, :rb_struct_aref, :elem_s_find,
+                       :fix_aref, :rb_struct_aref, :elem_find, :elem_s_find,
                        :rb_define_module_function
       <<-END
         rb_define_module_function(rb_mDocument, "[]", elem_s_find, 1);
+        rb_define_method(rb_cElement, "[]", elem_find, 1);
       //rb_define_method(rb_cStruct, "[]", rb_struct_aref, 1);
       //rb_define_method(rb_cMethod, "[]", method_call, -1);
       //rb_define_method(rb_cString, "[]", rb_str_aref_m, -1);
@@ -1246,12 +1247,11 @@ class Red::MethodCompiler
     end
     
     def find
-      $mc.add_functions :doc_s_find, :enum_find, :elem_s_find, :elem_find, :rb_define_singleton_method
+      $mc.add_functions :enum_find, :elem_s_find, :elem_find, :rb_define_singleton_method
       <<-END
         rb_define_method(rb_mEnumerable, "find", enum_find, -1);
         rb_define_method(rb_cElement, "find", elem_find, 1);
         rb_define_singleton_method(rb_cElement, "find", elem_s_find, 1);
-        rb_define_singleton_method(rb_mDocument, "find", doc_s_find, 1);
         
       END
     end
