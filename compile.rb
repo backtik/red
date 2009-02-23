@@ -1,7 +1,10 @@
 require 'src/redshift/browser'
+require 'src/redshift/code_event'
 require 'src/redshift/document'
 require 'src/redshift/element'
 require 'src/redshift/event'
+require 'src/redshift/request'
+require 'src/redshift/response'
 require 'src/redshift/user_event'
 require 'src/redshift/window'
 class Red::MethodCompiler
@@ -533,6 +536,13 @@ class Red::MethodCompiler
       <<-END
       //rb_define_method(rb_cMethod, "call", method_call, -1);
         rb_define_method(rb_cProc, "call", rb_proc_call, -2);
+      END
+    end
+    
+    def cancel
+      $mc.add_function :req_cancel
+      <<-END
+        rb_define_method(rb_cRequest, "cancel", req_cancel, 0);
       END
     end
     
@@ -1181,6 +1191,13 @@ class Red::MethodCompiler
       END
     end
     
+    def execute
+      $mc.add_function :req_execute
+      <<-END
+        rb_define_method(rb_cRequest, "execute", req_execute, 0);
+      END
+    end
+    
     def execute_js
       $mc.add_function :doc_execute_js
       <<-END
@@ -1265,6 +1282,13 @@ class Red::MethodCompiler
       $mc.add_function :flo_is_finite_p
       <<-END
         rb_define_method(rb_cFloat, "finite?", flo_is_finite_p, 0);
+      END
+    end
+    
+    def fire
+      $mc.add_function :cevent_fire
+      <<-END
+        rb_define_method(rb_mCodeEvent, "fire", cevent_fire, -1);
       END
     end
     
@@ -1424,6 +1448,13 @@ class Red::MethodCompiler
       END
     end
     
+    def ignore
+      $mc.add_function :cevent_ignore
+      <<-END
+        rb_define_method(rb_mCodeEvent, "ignore", cevent_ignore, 1);
+      END
+    end
+    
     def include
       $mc.add_function :rb_mod_include, :rb_define_private_method
       <<-END
@@ -1514,8 +1545,9 @@ class Red::MethodCompiler
                        :nometh_err_initialize, :syserr_initialize,
                        :exc_initialize, :name_err_initialize,
                        :exit_initialize, :rb_ary_initialize, :rb_struct_initialize,
-                       :enumerator_initialize, :elem_initialize
+                       :enumerator_initialize, :elem_initialize, :req_initialize
       <<-END
+        rb_define_method(rb_cRequest, "initialize", req_initialize, -1);
         rb_define_method(rb_cElement, "initialize", elem_initialize, 1);
         rb_define_method(rb_cEnumerator, "initialize", enumerator_initialize, -1);
         rb_define_method(rb_cStruct, "initialize", rb_struct_initialize, -2);
@@ -2419,6 +2451,13 @@ class Red::MethodCompiler
       END
     end
     
+    def response
+      $mc.add_function :req_response
+      <<-END
+        rb_define_method(rb_cRequest, "response", req_response, 0);
+      END
+    end
+    
     def reverse
       $mc.add_function :rb_str_reverse, :rb_ary_reverse_m
       <<-END
@@ -2834,6 +2873,13 @@ class Red::MethodCompiler
       END
     end
     
+    def text
+      $mc.add_function :resp_text
+      <<-END
+        rb_define_method(rb_cResponse, "text", resp_text, 0);
+      END
+    end
+    
     def times
       $mc.add_function :int_dotimes
       <<-END
@@ -3082,6 +3128,13 @@ class Red::MethodCompiler
       END
     end
     
+    def upon
+      $mc.add_function :cevent_upon
+      <<-END
+        rb_define_method(rb_mCodeEvent, "upon", cevent_upon, -1);
+      END
+    end
+    
     def upto
       $mc.add_function :rb_str_upto_m, :int_upto
       <<-END
@@ -3153,6 +3206,13 @@ class Red::MethodCompiler
       $mc.add_function :io_write
       <<-END
         rb_define_method(rb_cIO, "write", io_write, 1);
+      END
+    end
+    
+    def xml
+      $mc.add_function :resp_xml
+      <<-END
+        rb_define_method(rb_cResponse, "xml", resp_xml, 0);
       END
     end
     
@@ -3505,6 +3565,15 @@ class Red::MethodCompiler
       END
     end
     
+    # 
+    def Init_CodeEvent
+      <<-END
+        function Init_CodeEvent() {
+          rb_mCodeEvent = rb_define_module("CodeEvent");
+        }
+      END
+    end
+    
     # CHECK
     def Init_Comparable
       add_function :rb_define_module
@@ -3546,6 +3615,7 @@ class Red::MethodCompiler
         function Init_Element() {
           rb_cElement = rb_define_class("Element", rb_cObject);
           rb_include_module(rb_cElement, rb_mUserEvent);
+          rb_include_module(rb_cElement, rb_mCodeEvent);
         }
       END
     end
@@ -3753,6 +3823,7 @@ class Red::MethodCompiler
           id_inside    = rb_intern("inside");
           id_after     = rb_intern("after");
           id_before    = rb_intern("before");
+          id_fire      = rb_intern("fire");
           
           each  = rb_intern("each");
           eqq   = rb_intern("===");
@@ -3925,7 +3996,7 @@ class Red::MethodCompiler
           orig_stdout = rb_stdout;
         //rb_deferr = orig_stderr = rb_stderr;
         
-        ///* constants to hold original stdin/stdout/stderr */
+        // /* constants to hold original stdin/stdout/stderr */
         //rb_define_global_const("STDIN", rb_stdin);
           rb_define_global_const("STDOUT", rb_stdout);
         //rb_define_global_const("STDERR", rb_stderr);
@@ -4123,6 +4194,33 @@ class Red::MethodCompiler
       END
     end
     
+    # 
+    def Init_Request
+      add_function :rb_define_class, :rb_include_module
+      <<-END
+        function Init_Request() {
+          rb_cRequest = rb_define_class("Request", rb_cObject);
+          rb_include_module(rb_cRequest, rb_mCodeEvent);
+          sym_response = ID2SYM(rb_intern("response"));
+          sym_success  = ID2SYM(rb_intern("success"));
+          sym_failure  = ID2SYM(rb_intern("failure"));
+          sym_request  = ID2SYM(rb_intern("request"));
+          sym_cancel   = ID2SYM(rb_intern("cancel"));
+        }
+      END
+    end
+    
+    # 
+    def Init_Response
+      add_function :rb_define_class
+      <<-END
+        function Init_Response() {
+          rb_cResponse = rb_define_class("Response", rb_cObject);
+          rb_undef_method(CLASS_OF(rb_cResponse), "new");
+        }
+      END
+    end
+    
     # EMPTY
     def Init_Regexp
       <<-END
@@ -4258,7 +4356,8 @@ class Red::MethodCompiler
                     :Init_Enumerator, :Init_version, :Init_UserEvent,
                     :Init_Document, :Init_Element, :Init_Window, :Init_Method,
                     :Init_UnboundMethod, :Init_MatchData, :Init_Event,
-                    :Init_Browser
+                    :Init_Browser, :Init_CodeEvent, :Init_Request,
+                    :Init_Response
       <<-END
         function rb_call_inits() {
           Init_sym();
@@ -4299,11 +4398,14 @@ class Red::MethodCompiler
           Init_Enumerator();
         //Init_version();
           
+          Init_CodeEvent();
           Init_Browser();
           Init_UserEvent();
           Init_Document();
           Init_Element();
           Init_Event();
+          Init_Request();
+          Init_Response();
           Init_Window();
         }
       END
@@ -4311,7 +4413,8 @@ class Red::MethodCompiler
     
     # CHECK CHECK CHECK
     def ruby_init
-      add_functions :rb_call_inits, :rb_define_global_const, :rb_f_binding, :rb_node_newnode, :top_local_init
+      add_functions :rb_call_inits, :rb_define_global_const, :rb_f_binding,
+                    :rb_node_newnode, :top_local_init, :local_cnt
       <<-END
         function ruby_init() {
           red_init_bullshit();
@@ -4845,7 +4948,7 @@ class Red::MethodCompiler
             if (argc > i) {
               if (vars) { // was "*vars = rb_ary_new4(argc - i, argv + i)"
                 var ary4 = rb_ary_new();
-                MEMCPY(ary4, argv.slice(1), argc - 1);
+                MEMCPY(ary4.ptr, argv.slice(1), argc - 1);
                 ary.push(ary4);
               }
               i = argc;
@@ -9906,7 +10009,8 @@ class Red::MethodCompiler
           prot_tag = _tag; // ^
           try {
             proc_set_safe_level(proc);
-            result = rb_yield_0(args, self, (self != Qundef) ? CLASS_OF(self) : 0, pcall | YIELD_PROC_CALL, avalue);
+            result = rb_yield_0(args[0], self, (self != Qundef) ? CLASS_OF(self) : 0, pcall | YIELD_PROC_CALL, avalue);
+          //result = rb_yield_0(args, self, (self != Qundef) ? CLASS_OF(self) : 0, pcall | YIELD_PROC_CALL, avalue);
           } catch (x) {
             if (typeof(state = x) != 'number') { throw(state); }
             if (TAG_DST()) { result = prot_tag.retval; }
@@ -9915,7 +10019,7 @@ class Red::MethodCompiler
           ruby_iter = _iter.prev; // was POP_ITER
           ruby_block = old_block;
           if (_old_vars && (ruby_scope.flags & SCOPE_DONT_RECYCLE)) { // ff. was POP_VARS
-            if (RBASIC(_old_vars).flags) /* unless it's already recycled */ { FL_SET(_old_vars, DVAR_DONT_RECYCLE); }
+            if (_old_vars.basic.flags) /* unless it's already recycled */ { FL_SET(_old_vars, DVAR_DONT_RECYCLE); }
           }
           ruby_dyna_vars = _old_vars; // ^^
           ruby_safe_level = safe;
@@ -10246,7 +10350,7 @@ class Red::MethodCompiler
       <<-END
         function rb_str_new(ptr) {
           var str = str_alloc(rb_cString);
-          str.ptr = ptr;
+          str.ptr = ptr || '';
           return str;
         }
       END
@@ -10947,6 +11051,7 @@ class Red::MethodCompiler
   include Boot
   include Browser
   include Class
+  include CodeEvent
   include Comparable
   include Data
   include Rb
@@ -10972,6 +11077,8 @@ class Red::MethodCompiler
   include Parse
   include Proc
   include Range
+  include Request
+  include Response
   include St
   include String
   include Struct

@@ -27,9 +27,7 @@
 #puts "six:   #{a}"
 
 Document.ready? do
-  elem1 = Element.find('div-element-1')
-  elem2 = Element.find('div-element-2')
-  UserEvent.define(:alt_click, :base => 'click', :condition => proc { |event| event.alt? })
-  elem1.listen(:alt_click) { |x| puts x; 1 }
-# elem1.insert(elem2, 'inside')
+  req = Request.new(:url => 'http://localhost:9292/ruby.html')
+  req.execute
+  req.upon(:response) { |response| puts response.text }
 end

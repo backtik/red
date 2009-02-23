@@ -1192,7 +1192,7 @@ module Red
     ruby_source += $mc.functions
     ruby_source += $mc.methods
     condensed_ruby_source = ruby_source.
-      gsub(/\/\/.*/,"").
+      gsub(/\s\/\/.*/,"").
       gsub(/\n/," ").
       gsub(/\s+/," ")
     Preprocessor.new.process!(condensed_ruby_source)
