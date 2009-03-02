@@ -18,6 +18,36 @@ class Red::MethodCompiler
     end
     
     # 
+    def rb_query_data_to_string
+      <<-END
+        function rb_query_data_to_string(tbl, base) {
+          var ary = [];
+          var base_p = (base != '');
+          for (var x in tbl) {
+            if (NIL_P(tbl[x])) { continue; }
+            var key = rb_id2name(rb_to_id(x));
+            var value = tbl[x];
+            var kv_pair = '';
+            if (base_p) { key = base + '[' + key + ']'; }
+            switch (TYPE(value)) {
+              case T_HASH:
+                kv_pair = rb_query_data_to_string(value.tbl, key);
+                break;
+              case T_STRING:
+                kv_pair = key + '=' + encodeURIComponent(value.ptr);
+                break;
+              default:
+                // add in an error here
+            }
+            ary.push(kv_pair);
+          }
+          console.log(ary.join('&'));
+          return ary.join('&');
+        }
+      END
+    end
+    
+    # 
     def rb_req_parameters
       add_function :rb_intern, :rb_check_type, :rb_query_data_to_string, :rb_id2name, :rb_to_id
       <<-END
@@ -32,7 +62,7 @@ class Red::MethodCompiler
           
           if ((param = sym("data"))) {
             Check_Type(param, T_HASH);
-            rb_query_data_to_string(param);
+            req.data = rb_query_data_to_string(param.tbl, '');
           }
           
           if ((param = sym("format"))) {
@@ -69,6 +99,12 @@ class Red::MethodCompiler
           if ((param = sym("url_encoded")) && RTEST(param) && (req.method == 'POST')) {
             var encoding = (req.encoding) ? ('; charset=' + req.encoding) : '';
             req.headers['Content-type'] = 'application/x-www-form-urlencoded' + encoding;
+          }
+          
+          if (req.data && (req.method == 'GET')) {
+            var separator = (/[?]/.test(req.url)) ? '&' : '?';
+            req.url = [req.url, req.data].join(separator);
+            req.data = 0;
           }
           
           if ((param = sym("eval_response"))) {
@@ -130,12 +166,14 @@ class Red::MethodCompiler
     
     # 
     def req_execute
-      add_function :resp_alloc, :rb_process_scripts, :rb_funcall2
+      add_function :resp_alloc, :rb_process_scripts, :rb_funcall, :rb_req_parameters
       add_method :fire
       <<-END
         function req_execute(req) {
           req.running = Qtrue;
           var xhr = req.ptr;
+          
+          rb_req_parameters(req, {});
           
           xhr.open(req.method, req.url, req.async);
           xhr.onreadystatechange = function() {
@@ -161,7 +199,9 @@ class Red::MethodCompiler
           var headers = req.headers;
           for (var x in headers) { xhr.setRequestHeader(x, headers[x]); }
           
-          xhr.send('');
+          rb_funcall(req, id_fire, 2, sym_request);
+          xhr.send(req.data || '');
+          if (!req.async) { xhr.onreadystatechange() }
           return req;
         }
       END
@@ -182,6 +222,7 @@ class Red::MethodCompiler
           }
           req.ptr = (typeof(ActiveXObject) == 'undefined') ? new(XMLHttpRequest)() : new(ActiveXObject)('MSXML2.XMLHTTP');
           req.url = '';
+          req.data = 0;
           req.async = Qtrue;
           req.response = Qnil;
           req.method = 'POST';

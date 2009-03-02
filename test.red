@@ -27,7 +27,8 @@
 #puts "six:   #{a}"
 
 Document.ready? do
-  req = Request.new(:url => 'http://localhost:9292/ruby.html')
-  req.execute
-  req.upon(:response) { |response| puts response.text }
+  elem = Element.find('div-element-1')
+  puts elem.set_opacity(25)
+  puts elem.set_style(:opacity, 50)
+  puts elem.set_styles(:opacity => 75, :float => :left)
 end

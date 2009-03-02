@@ -1,3 +1,4 @@
+require 'src/redshift/accessors'
 require 'src/redshift/browser'
 require 'src/redshift/code_event'
 require 'src/redshift/document'
@@ -34,7 +35,8 @@ class Red::MethodCompiler
     begin
       self.send(function)
     rescue NoMethodError
-      "        console.log(\"missing JS function '%s'\");\n" % function
+      ""
+    # "        console.log(\"missing JS function '%s'\");\n" % function
     end
       @functions += result
     end
@@ -167,11 +169,12 @@ class Red::MethodCompiler
     end
     
     def <<
-      $mc.add_function :rb_str_concat, :rb_ary_push, :rb_fix_lshift
+      $mc.add_function :rb_str_concat, :rb_ary_push, :rb_fix_lshift, :classes_append
       <<-END
-        rb_define_method(rb_cString, "<<", rb_str_concat, 1);
+        rb_define_method(rb_cClasses, "<<", classes_append, 1);
+      //rb_define_method(rb_cString, "<<", rb_str_concat, 1);
         rb_define_method(rb_cArray, "<<", rb_ary_push, 1);
-        rb_define_method(rb_cFixnum, "<<", rb_fix_lshift, 1);
+      //rb_define_method(rb_cFixnum, "<<", rb_fix_lshift, 1);
       END
     end
     
@@ -273,14 +276,17 @@ class Red::MethodCompiler
                        :rb_hash_aref, :rb_define_singleton_method,
                        :rb_str_aref_m, :rb_ary_s_create, :rb_ary_aref,
                        :fix_aref, :rb_struct_aref, :elem_find,
-                       :rb_define_module_function
+                       :rb_define_module_function, :prop_aref,
+                       :styles_aref
       <<-END
+        rb_define_method(rb_cStyles, "[]", styles_aref, 1);
+        rb_define_method(rb_cProperties, "[]", prop_aref, 1);
         rb_define_module_function(rb_mDocument, "[]", elem_find, 1);
       //rb_define_method(rb_cStruct, "[]", rb_struct_aref, 1);
       //rb_define_method(rb_cMethod, "[]", method_call, -1);
       //rb_define_method(rb_cString, "[]", rb_str_aref_m, -1);
         rb_define_singleton_method(rb_cHash, "[]", rb_hash_s_create, -1);
-        rb_define_method(rb_cHash,"[]", rb_hash_aref, 1);
+        rb_define_method(rb_cHash, "[]", rb_hash_aref, 1);
       //rb_define_singleton_method(rb_cArray, "[]", rb_ary_s_create, -1);
       //rb_define_method(rb_cArray, "[]", rb_ary_aref, -1);
       //rb_define_method(rb_cFixnum, "[]", fix_aref, 1);
@@ -289,8 +295,11 @@ class Red::MethodCompiler
     end
     
     def []=
-      $mc.add_function :rb_hash_aset, :rb_str_aset_m, :rb_ary_aset, :rb_struct_aset
+      $mc.add_function :rb_hash_aset, :rb_str_aset_m, :rb_ary_aset, :rb_struct_aset,
+                       :prop_aset, :styles_aset
       <<-END
+        rb_define_method(rb_cStyles, "[]=", styles_aset, 2);
+        rb_define_method(rb_cProperties, "[]=", prop_aset, 2);
         rb_define_method(rb_cStruct, "[]=", rb_struct_aset, 2);
         rb_define_method(rb_cHash,"[]=", rb_hash_aset, 2);
         rb_define_method(rb_cString, "[]=", rb_str_aset_m, -1);
@@ -343,6 +352,20 @@ class Red::MethodCompiler
         rb_define_method(rb_cNumeric, "abs", num_abs, 0);
         rb_define_method(rb_cFixnum, "abs", fix_abs, 0);
         rb_define_method(rb_cFloat, "abs", flo_abs, 0);
+      END
+    end
+    
+    def add_class
+      $mc.add_function :elem_add_class
+      <<-END
+        rb_define_method(rb_cElement, "add_class", elem_add_class, 1);
+      END
+    end
+    
+    def add_classes
+      $mc.add_function :elem_add_classes
+      <<-END
+        rb_define_method(rb_cElement, "add_classes", elem_add_classes, -1);
       END
     end
     
@@ -638,9 +661,17 @@ class Red::MethodCompiler
     end
     
     def class
-      $mc.add_function :rb_obj_class
+      $mc.add_function :rb_obj_class, :elem_class_get
       <<-END
         rb_define_method(rb_mKernel, "class", rb_obj_class, 0);
+        rb_define_method(rb_cElement, "class", elem_class_get, 0);
+      END
+    end
+    
+    def class=
+      $mc.add_function :elem_class_set
+      <<-END
+        rb_define_method(rb_cElement, "class=", elem_class_set, 1);
       END
     end
     
@@ -686,11 +717,33 @@ class Red::MethodCompiler
       END
     end
     
-    def clear
-      $mc.add_function :rb_hash_clear, :rb_ary_clear
+    def classes
+      $mc.add_function :elem_classes_get
       <<-END
-        rb_define_method(rb_cHash, "clear", rb_hash_clear, 0);
-        rb_define_method(rb_cArray, "clear", rb_ary_clear, 0);
+        rb_define_method(rb_cElement, "classes", elem_classes_get, 0);
+      END
+    end
+    
+    def classes=
+      $mc.add_function :elem_classes_set
+      <<-END
+        rb_define_method(rb_cElement, "classes=", elem_classes_set, 1);
+      END
+    end
+    
+    def clear
+      $mc.add_function :rb_hash_clear, :rb_ary_clear, :styles_clear
+      <<-END
+      //rb_define_method(rb_cHash, "clear", rb_hash_clear, 0);
+      //rb_define_method(rb_cArray, "clear", rb_ary_clear, 0);
+        rb_define_method(rb_cStyles, "clear", styles_clear, 0);
+      END
+    end
+    
+    def clear_styles
+      $mc.add_function :elem_clear_styles
+      <<-END
+        rb_define_method(rb_cElement, "clear_styles", elem_clear_styles, 0);
       END
     end
     
@@ -866,9 +919,12 @@ class Red::MethodCompiler
     end
     
     def delete
-      $md.add_function :rb_hash_delete, :rb_str_delete, :rb_ary_delete
+      $mc.add_function :rb_hash_delete, :rb_str_delete, :rb_ary_delete,
+                       :styles_delete, :prop_delete
       <<-END
-        rb_define_method(rb_cHash,"delete", rb_hash_delete, 1);
+        rb_define_method(rb_cStyles, "delete", styles_delete, 1);
+        rb_define_method(rb_cProperties, "delete", prop_delete, 1);
+        rb_define_method(rb_cHash, "delete", rb_hash_delete, 1);
         rb_define_method(rb_cString, "delete", rb_str_delete, -1);
         rb_define_method(rb_cArray, "delete", rb_ary_delete, 1);
       END
@@ -1062,6 +1118,15 @@ class Red::MethodCompiler
       <<-END
         rb_define_method(rb_mEnumerable, "each_with_index", enum_each_with_index, 0);
         rb_define_method(rb_cEnumerator, "each_with_index", enumerator_with_index, 0);
+      END
+    end
+    
+    def element
+      $mc.add_function :styles_element, :classes_element, :prop_element
+      <<-END
+        rb_define_method(rb_cStyles, "element", styles_element, 0);
+        rb_define_method(rb_cClasses, "element", classes_element, 0);
+        rb_define_method(rb_cProperties, "element", prop_element, 0);
       END
     end
     
@@ -1361,6 +1426,20 @@ class Red::MethodCompiler
       END
     end
     
+    def get_property
+      $mc.add_function :elem_get_property
+      <<-END
+        rb_define_method(rb_cElement, "get_property", elem_get_property, 1);
+      END
+    end
+    
+    def get_style
+      $mc.add_function :elem_get_style
+      <<-END
+        rb_define_method(rb_cElement, "get_style", elem_get_style, 1);
+      END
+    end
+    
     def grep
       $mc.add_function :enum_grep
       <<-END
@@ -1388,6 +1467,13 @@ class Red::MethodCompiler
       <<-END
         rb_define_method(rb_cString, "gsub!", rb_str_gsub_bang, -1);
         rb_define_global_function("gsub!", rb_f_gsub_bang, -1);
+      END
+    end
+    
+    def has_class?
+      $mc.add_function :elem_has_class_p
+      <<-END
+        rb_define_method(rb_cElement, "has_class?", elem_has_class_p, 1);
       END
     end
     
@@ -1434,9 +1520,24 @@ class Red::MethodCompiler
     end
     
     def html
-      $mc.add_function :doc_html
+      $mc.add_function :doc_html, :elem_html_get, :rb_define_module_function
       <<-END
         rb_define_module_function(rb_mDocument, "html", doc_html, 0);
+        rb_define_method(rb_cElement, "html", elem_html_get, 0);
+      END
+    end
+    
+    def html=
+      $mc.add_function :elem_html_set
+      <<-END
+        rb_define_method(rb_cElement, "html=", elem_html_set, 1);
+      END
+    end
+    
+    def id
+      $mc.add_function :elem_id
+      <<-END
+        rb_define_method(rb_cElement, "id", elem_id, 0);
       END
     end
     
@@ -1464,14 +1565,16 @@ class Red::MethodCompiler
     
     def include?
       $mc.add_function :enum_member, :rb_mod_include_p, :range_include,
-                       :rb_hash_has_key, :rb_str_include, :rb_ary_includes
+                       :rb_hash_has_key, :rb_str_include, :rb_ary_includes,
+                       :classes_include_p
       <<-END
-        rb_define_method(rb_cRange, "include?", range_include, 1);
+      //rb_define_method(rb_cRange, "include?", range_include, 1);
+        rb_define_method(rb_cClasses, "include?", classes_include_p, 1);
         rb_define_method(rb_cHash,"include?", rb_hash_has_key, 1);
         rb_define_method(rb_cArray, "include?", rb_ary_includes, 1);
-        rb_define_method(rb_cModule, "include?", rb_mod_include_p, 1);
-        rb_define_method(rb_cString, "include?", rb_str_include, 1);
-        rb_define_method(rb_mEnumerable, "include?", enum_member, 1);
+      //rb_define_method(rb_cModule, "include?", rb_mod_include_p, 1);
+      //rb_define_method(rb_cString, "include?", rb_str_include, 1);
+      //rb_define_method(rb_mEnumerable, "include?", enum_member, 1);
       END
     end
     
@@ -2174,6 +2277,13 @@ class Red::MethodCompiler
       END
     end
     
+    def properties
+      $mc.add_function :elem_properties
+      <<-END
+        rb_define_method(rb_cElement, "properties", elem_properties, 0);
+      END
+    end
+    
     def pop
       $mc.add_function :rb_ary_pop_m
       <<-END
@@ -2415,10 +2525,24 @@ class Red::MethodCompiler
       END
     end
     
+    def remove_class
+      $mc.add_function :elem_remove_class
+      <<-END
+        rb_define_method(rb_cElement, "remove_class", elem_remove_class, 1);
+      END
+    end
+    
     def remove_class_variable
       $mc.add_function :rb_mod_remove_cvar, :rb_define_private_method
       <<-END
         rb_define_private_method(rb_cModule, "remove_class_variable", rb_mod_remove_cvar, 1);
+      END
+    end
+    
+    def remove_classes
+      $mc.add_function :elem_remove_classes
+      <<-END
+        rb_define_method(rb_cElement, "remove_classes", elem_remove_classes, -1);
       END
     end
     
@@ -2433,6 +2557,34 @@ class Red::MethodCompiler
       $mc.add_function :rb_obj_remove_instance_variable, :rb_define_private_method
       <<-END
         rb_define_private_method(rb_mKernel, "remove_instance_variable", rb_obj_remove_instance_variable, 1);
+      END
+    end
+    
+    def remove_property
+      $mc.add_function :elem_remove_property
+      <<-END
+        rb_define_method(rb_cElement, "remove_property", elem_remove_property, 1);
+      END
+    end
+    
+    def remove_properties
+      $mc.add_function :elem_remove_properties
+      <<-END
+        rb_define_method(rb_cElement, "remove_properties", elem_remove_properties, -1);
+      END
+    end
+    
+    def remove_style
+      $mc.add_function :elem_remove_style
+      <<-END
+        rb_define_method(rb_cElement, "remove_style", elem_remove_style, 1);
+      END
+    end
+    
+    def remove_styles
+      $mc.add_function :elem_remove_styles
+      <<-END
+        rb_define_method(rb_cElement, "remove_styles", elem_remove_styles, -1);
       END
     end
     
@@ -2559,10 +2711,53 @@ class Red::MethodCompiler
       END
     end
     
+    def set?
+      $mc.add_function :styles_set_p, :prop_set_p
+      <<-END
+        rb_define_method(rb_cStyles, "set?", styles_set_p, 1);
+        rb_define_method(rb_cProperties, "set?", prop_set_p, 1);
+      END
+    end
+    
     def set_backtrace
       $mc.add_function :exc_set_backtrace
       <<-END
         rb_define_method(rb_eException, "set_backtrace", exc_set_backtrace, 1);
+      END
+    end
+    
+    def set_opacity
+      $mc.add_function :elem_set_opacity
+      <<-END
+        rb_define_method(rb_cElement, "set_opacity", elem_set_opacity, -1);
+      END
+    end
+    
+    def set_property
+      $mc.add_function :elem_set_property
+      <<-END
+        rb_define_method(rb_cElement, "set_property", elem_set_property, 2);
+      END
+    end
+    
+    def set_properties
+      $mc.add_function :elem_set_properties
+      <<-END
+        rb_define_method(rb_cElement, "set_properties", elem_set_properties, 1);
+      END
+    end
+    
+    def set_style
+      $mc.add_function :elem_set_style
+      <<-END
+        rb_define_method(rb_cElement, "set_style", elem_set_style, 2);
+      END
+    end
+    
+    def set_styles
+      $mc.add_function :elem_set_styles
+      <<-END
+        rb_define_method(rb_cElement, "set_styles", elem_set_styles, 1);
       END
     end
     
@@ -2762,6 +2957,27 @@ class Red::MethodCompiler
       END
     end
     
+    def style
+      $mc.add_function :elem_style_get
+      <<-END
+        rb_define_method(rb_cElement, "style", elem_style_get, 0);
+      END
+    end
+    
+    def style=
+      $mc.add_function :elem_style_set
+      <<-END
+        rb_define_method(rb_cElement, "style=", elem_style_set, 1);
+      END
+    end
+    
+    def styles
+      $mc.add_function :elem_styles
+      <<-END
+        rb_define_method(rb_cElement, "styles", elem_styles, 0);
+      END
+    end
+    
     def sub
       $mc.add_function :rb_str_sub, :rb_f_sub, :rb_define_global_function
       <<-END
@@ -2874,9 +3090,17 @@ class Red::MethodCompiler
     end
     
     def text
-      $mc.add_function :resp_text
+      $mc.add_function :resp_text, :elem_text_get
       <<-END
+        rb_define_method(rb_cElement, "text", elem_text_get, 0);
         rb_define_method(rb_cResponse, "text", resp_text, 0);
+      END
+    end
+    
+    def text=
+      $mc.add_function :elem_text_set
+      <<-END
+        rb_define_method(rb_cElement, "text=", elem_text_set, 1);
       END
     end
     
@@ -2942,7 +3166,7 @@ class Red::MethodCompiler
                        :flo_truncate
       <<-END
         rb_define_method(rb_cNilClass, "to_i", nil_to_i, 0);
-        rb_define_method(rb_cFloat, "to_i", flo_truncate, 0);
+      //rb_define_method(rb_cFloat, "to_i", flo_truncate, 0);
         rb_define_method(rb_cInteger, "to_i", int_to_i, 0);
         rb_define_method(rb_cString, "to_i", rb_str_to_i, -1);
         rb_define_method(rb_cSymbol, "to_i", sym_to_i, 0);
@@ -2954,8 +3178,8 @@ class Red::MethodCompiler
       <<-END
         rb_define_method(rb_cSymbol, "to_int", sym_to_int, 0);
         rb_define_method(rb_cInteger, "to_int", int_to_i, 0);
-        rb_define_method(rb_cFloat, "to_int", flo_truncate, 0);
-        rb_define_method(rb_cNumeric, "to_int", num_to_int, 0);
+      //rb_define_method(rb_cFloat, "to_int", flo_truncate, 0);
+      //rb_define_method(rb_cNumeric, "to_int", num_to_int, 0);
       END
     end
     
@@ -3011,6 +3235,20 @@ class Red::MethodCompiler
         rb_define_method(rb_cSymbol, "to_sym", sym_to_sym, 0);
         rb_define_method(rb_cString, "to_sym", rb_str_intern, 0);
         rb_define_method(rb_cFixnum, "to_sym", fix_to_sym, 0);
+      END
+    end
+    
+    def toggle
+      $mc.add_function :classes_toggle
+      <<-END
+        rb_define_method(rb_cClasses, "toggle", classes_toggle, 1);
+      END
+    end
+    
+    def toggle_class
+      $mc.add_function :elem_toggle_class
+      <<-END
+        rb_define_method(rb_cElement, "toggle_class", elem_toggle_class, 1);
       END
     end
     
@@ -3122,9 +3360,11 @@ class Red::MethodCompiler
     end
     
     def update
-      $mc.add_function :rb_hash_update
+      $mc.add_function :rb_hash_update, :prop_update, :styles_update
       <<-END
         rb_define_method(rb_cHash,"update", rb_hash_update, 1);
+        rb_define_method(rb_cStyles,"update", styles_update, 1);
+        rb_define_method(rb_cProperties,"update", prop_update, 1);
       END
     end
     
@@ -3492,6 +3732,17 @@ class Red::MethodCompiler
           rb_class_tbl[id] = obj; // was st_add_direct
           rb_const_set((rb_cObject ? rb_cObject : obj), id, obj);
           return obj;
+        }
+      END
+    end
+    
+    def Init_accessors
+      add_function :rb_define_class
+      <<-END
+        function Init_accessors() {
+          rb_cClasses = rb_define_class("Classes", rb_cObject);
+          rb_cProperties = rb_define_class("Properties", rb_cObject);
+          rb_cStyles = rb_define_class("Styles", rb_cObject);
         }
       END
     end
@@ -4357,7 +4608,7 @@ class Red::MethodCompiler
                     :Init_Document, :Init_Element, :Init_Window, :Init_Method,
                     :Init_UnboundMethod, :Init_MatchData, :Init_Event,
                     :Init_Browser, :Init_CodeEvent, :Init_Request,
-                    :Init_Response
+                    :Init_Response, :Init_accessors
       <<-END
         function rb_call_inits() {
           Init_sym();
@@ -4407,6 +4658,7 @@ class Red::MethodCompiler
           Init_Request();
           Init_Response();
           Init_Window();
+          Init_accessors();
         }
       END
     end
@@ -4911,19 +5163,17 @@ class Red::MethodCompiler
         function rb_scan_args(argc, argv, fmt) {
           var n;
           var p = 0;
-          var vars;
+          var i = 0;
           var ary = [argc];
           var goto_error = 0;
           var goto_rest_arg = 0;
-          var vargs = 0;
           if (fmt[p] == '*') { goto_rest_arg = 1; }
           if (!goto_rest_arg) { // added to handle "goto rest_arg"
             if (ISDIGIT(fmt[p])) {
               n = fmt[p] - '0';
               if (argc < n) { rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)", argc, n); }
-              for (var i = 0; i < n; i++) {
-                vars = argv[vargs++]; // just getting next argument out; was "vars = va_arg(vargs, VALUE*);"
-                if (vars) { ary.push(argv[i]); } // was "*vars = argv[i]"
+              for (i = 0; i < n; i++) {
+                ary.push(argv[i]);
               }
               p++;
             } else {
@@ -4933,33 +5183,28 @@ class Red::MethodCompiler
             if (ISDIGIT(fmt[p])) {
               n = i + fmt[p] - '0';
               for (; i < n; i++) {
-                vars = argv[vargs++]; // was "vars = va_arg(vargs, VALUE*);"
                 if (argc > i) {
-                  if (vars) { ary.push(argv[i]); } // was "*vars = argv[i]"
+                  ary.push(argv[i]);
                 } else {
-                  if (vars) { ary.push(Qnil); } // was "*vars = Qnil"
+                  ary.push(Qnil);
                 }
               }
               p++;
             }
           } // added to handle "goto rest_arg"
           if (goto_rest_arg || (fmt[p] == '*')) { // added "goto_rest_arg ||" in condition
-            vars = arguments[vargs++]; // was "vars = va_arg(vargs, VALUE*);"
             if (argc > i) {
-              if (vars) { // was "*vars = rb_ary_new4(argc - i, argv + i)"
-                var ary4 = rb_ary_new();
-                MEMCPY(ary4.ptr, argv.slice(1), argc - 1);
-                ary.push(ary4);
-              }
+              var ary4 = rb_ary_new();
+              MEMCPY(ary4.ptr, argv.slice(i), argc - i);
+              ary.push(ary4);
               i = argc;
             } else {
-              if (vars) { ary.push(rb_ary_new()); } // was "*vars = rb_ary_new()"
+              ary.push(rb_ary_new());
             }
             p++;
           }
           if (fmt[p] == '&') {
-            vars = arguments[vargs++]; // was "vars = va_arg(vargs, VALUE*);"
-            ary.push(rb_block_given_p() ? rb_block_proc() : Qnil); // was "*vars = rb_block_given_p() ? rb_block_proc() : Qnil"
+            ary.push(rb_block_given_p() ? rb_block_proc() : Qnil);
             p++;
           }
           if (typeof(fmt[p]) != "undefined") {
@@ -8664,6 +8909,15 @@ class Red::MethodCompiler
       END
     end
     
+    # verbatim
+    def int_to_i
+      <<-END
+        function int_to_i(num) {
+          return num;
+        }
+      END
+    end
+    
     # CHECK
     def rb_int_new
       add_function :rb_int2inum
@@ -11051,6 +11305,7 @@ class Red::MethodCompiler
   include Boot
   include Browser
   include Class
+  include Classes
   include CodeEvent
   include Comparable
   include Data
@@ -11076,12 +11331,14 @@ class Red::MethodCompiler
   include Object
   include Parse
   include Proc
+  include Properties
   include Range
   include Request
   include Response
   include St
   include String
   include Struct
+  include Styles
   include Symbol
   include True
   include UserEvent

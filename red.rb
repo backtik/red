@@ -1205,5 +1205,3 @@ module Red
   ]
   SOURCE_FILES = RUBY_SOURCE_FILES
 end
-
-# http://www.mcmurraytravel.com/Bill%20Image/abraham_lincoln1.jpg
