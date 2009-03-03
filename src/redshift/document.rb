@@ -22,19 +22,11 @@ class Red::MethodCompiler
     
     # complete
     def doc_execute_js
-      add_function :rb_check_type
+      add_function :rb_check_type, :rb_doc_exec_js
       <<-END
         function doc_execute_js(doc, str) {
           Check_Type(str, T_STRING);
-          if (window.execScript) {
-            window.execScript(str.ptr);
-          } else {
-            var script = document.createElement('script');
-            script.setAttribute('type','text/javascript');
-            script.text = str.ptr;
-            document.head.appendChild(script);
-            document.head.removeChild(script);
-          }
+          rb_doc_exec_js(str.ptr);
           return str;
         }
       END
@@ -104,6 +96,24 @@ class Red::MethodCompiler
             el = el[path];
           }
           return allBool ? ary : Qnil;
+        }
+      END
+    end
+    
+    # 
+    def rb_doc_exec_js
+      <<-END
+        function rb_doc_exec_js(string) {
+          if (window.execScript) {
+            window.execScript(string);
+          } else {
+            var script = document.createElement('script');
+            script.setAttribute('type','text/javascript');
+            script.text = string;
+            document.head.appendChild(script);
+            document.head.removeChild(script);
+          }
+          return string;
         }
       END
     end

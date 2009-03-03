@@ -1192,7 +1192,7 @@ module Red
     ruby_source += $mc.functions
     ruby_source += $mc.methods
     condensed_ruby_source = ruby_source.
-      gsub(/\/\/.*/,"").
+      gsub(/\s\/\/.*/,"").
       gsub(/\n/," ").
       gsub(/\s+/," ")
     Preprocessor.new.process!(condensed_ruby_source)
@@ -1205,6 +1205,3 @@ module Red
   ]
   SOURCE_FILES = RUBY_SOURCE_FILES
 end
-
-# Requisite image of young Abraham Lincoln. Red *may* not function without this on some systems
-# http://www.mcmurraytravel.com/Bill%20Image/abraham_lincoln1.jpg

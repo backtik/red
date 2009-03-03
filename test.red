@@ -27,9 +27,8 @@
 #puts "six:   #{a}"
 
 Document.ready? do
-  elem1 = Element.find('div-element-1')
-  elem2 = Element.find('div-element-2')
-  UserEvent.define(:alt_click, :base => 'click', :condition => proc { |event| event.alt? })
-  elem1.listen(:alt_click) { |x| puts x; 1 }
-# elem1.insert(elem2, 'inside')
+  elem = Element.find('div-element-1')
+  puts elem.set_opacity(25)
+  puts elem.set_style(:opacity, 50)
+  puts elem.set_styles(:opacity => 75, :float => :left)
 end

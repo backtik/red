@@ -221,7 +221,7 @@ function jsprintf(f,ary) {
     } else if (m = /^\x25{2}/.exec(f)) { 
       o.push('%');
     } else if (m = /^\x25(?:(\d+)\$)?(\+)?(0|'[^$])?(-)?(\d+)?(?:\.(\d+))?([b-fosuxX])/.exec(f)) {
-      if (((a = ary[m[1] || i++]) === null) || (typeof(a) == 'undefined')) { return o.join(''); }//throw("Too few arguments passed to sprintf"); }
+      if (((a = ary[m[1] || i++]) === null) || (typeof(a) == 'undefined')) { return o.join(''); } //throw("Too few arguments passed to sprintf"); }
       if (/[^s]/.test(m[7]) && (typeof(a) != 'number')) { throw("Expecting number but found " + typeof(a)); }
       switch (m[7]) {
         case 'b': a = a.toString(2); break;
