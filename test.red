@@ -26,9 +26,4 @@
 #end
 #puts "six:   #{a}"
 
-Document.ready? do
-  elem = Element.find('div-element-1')
-  puts elem.set_opacity(25)
-  puts elem.set_style(:opacity, 50)
-  puts elem.set_styles(:opacity => 75, :float => :left)
-end
+

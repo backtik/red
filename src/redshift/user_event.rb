@@ -1,6 +1,6 @@
 class Red::MethodCompiler
   module UserEvent
-    # 
+    # complete
     def init_custom_events
       <<-END
         function init_custom_events() {
@@ -11,7 +11,8 @@ class Red::MethodCompiler
     
     # need to add special "unload" type handler
     def uevent_add_listener
-      add_function :rb_block_proc, :rb_proc_call, :rb_ary_new, :rb_id2name, :rb_event_wrapper
+      add_function :rb_block_proc, :rb_proc_call, :rb_ary_new, :rb_id2name,
+                   :rb_event_wrapper
       <<-END
         function uevent_add_listener(elem, name) {
           var bvar = rb_block_proc();
@@ -28,6 +29,7 @@ class Red::MethodCompiler
       END
     end
     
+    # 
     def rb_add_listener
       add_function :rb_id2name
       <<-END
@@ -44,7 +46,8 @@ class Red::MethodCompiler
     
     # 
     def uevent_listen
-      add_function :rb_scan_args, :rb_to_id, :rb_block_proc, :rb_proc_call, :rb_funcall, :rb_add_listener, :rb_event_wrapper
+      add_function :rb_scan_args, :rb_to_id, :rb_block_proc, :rb_proc_call,
+                   :rb_funcall, :rb_add_listener, :rb_event_wrapper
       add_method :call
       <<-END
         function uevent_listen(argc, argv, obj) {
@@ -88,6 +91,7 @@ class Red::MethodCompiler
       END
     end
     
+    # 
     def uevent_s_define
       add_function :rb_check_type, :rb_to_id
       <<-END

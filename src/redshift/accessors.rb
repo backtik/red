@@ -280,7 +280,8 @@ class Red::MethodCompiler
     
     # complete
     def elem_set_properties
-      add_function :rb_check_type, :rb_set_element_property, :rb_id2name, :rb_to_id
+      add_function :rb_check_type, :rb_set_element_property, :rb_id2name,
+                   :rb_to_id
       <<-END
         function elem_set_properties(elem, hash) {
           Check_Type(hash, T_HASH);
@@ -530,7 +531,7 @@ class Red::MethodCompiler
     end
   end
   
-  # 
+  # complete
   module Classes
     # complete
     def classes_append

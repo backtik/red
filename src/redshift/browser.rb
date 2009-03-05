@@ -4,7 +4,7 @@ class Red::MethodCompiler
     # complete
     def browser_platform
       <<-END
-        function browser_platform() {
+        function browser_platform(browser) {
           return ruby_platform;
         }
       END
@@ -14,7 +14,7 @@ class Red::MethodCompiler
     def browser_engine
       add_function :rb_hash_s_create, :rb_intern
       <<-END
-        function browser_engine() {
+        function browser_engine(browser) {
           return rb_hash_s_create(4, [ID2SYM(rb_intern("name")), ruby_engine_name, ID2SYM(rb_intern("version")), ruby_engine_version], rb_cHash);
         }
       END
@@ -31,6 +31,7 @@ class Red::MethodCompiler
     
     # complete
     def rb_f_gecko_p
+      add_function :rb_scan_args
       <<-END
         function rb_f_gecko_p(argc, argv) {
           var v = rb_scan_args(argc, argv, "01")[1];
