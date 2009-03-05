@@ -25,12 +25,15 @@ require 'src/ruby/true'
 require 'src/ruby/comparable'
 require 'src/redshift/accessors'
 require 'src/redshift/browser'
+require 'src/redshift/classes'
 require 'src/redshift/code_event'
 require 'src/redshift/document'
 require 'src/redshift/element'
 require 'src/redshift/event'
+require 'src/redshift/properties'
 require 'src/redshift/request'
 require 'src/redshift/response'
+require 'src/redshift/styles'
 require 'src/redshift/user_event'
 class Red::MethodCompiler
   attr_reader :functions
@@ -8102,21 +8105,10 @@ class Red::MethodCompiler
   end
   
   include Boot
-  include Browser
-  include Classes
-  include CodeEvent
   include Rb
-  include Document
-  include Element
   include Eval
-  include Event
   include Node
   include Parse
-  include Properties
-  include Request
-  include Response
   include St
-  include Styles
-  include UserEvent
   include Variable
 end
