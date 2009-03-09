@@ -14,6 +14,23 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def rb_struct_hash
+    add_function :rb_hash, :rb_obj_class
+    <<-END
+      function rb_struct_hash(s) {
+        var n;
+        var h = rb_hash(rb_obj_class(s));
+        for (var i = 0, l = s.len; i < l; ++i) {
+          h = (h << 1) | ((h < 0) ? 1 : 0);
+          n = rb_hash(s.ptr[i]);
+          h ^= NUM2LONG(n);
+        }
+        return LONG2FIX(h);
+      }
+    END
+  end
+  
   # EMPTY
   def rb_struct_init_copy
     <<-END

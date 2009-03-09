@@ -79,7 +79,7 @@ class Red::MethodCompiler
   
   # INCOMPLETE -- CHECK ON ST FUNCTIONS
   def rb_mod_init_copy
-    add_function :rb_obj_init_copy, :rb_singleton_class_clone, :clone_method
+    add_function :rb_obj_init_copy, :rb_singleton_class_clone, :clone_method, :st_init_numtable
     <<-END
       function rb_mod_init_copy(clone, orig) {
         console.log('check on st_functions in rb_mod_init_copy');
@@ -99,7 +99,7 @@ class Red::MethodCompiler
         }
         if (orig.m_tbl) {
           var data;
-          data.tbl = clone.m_tbl = {}; // was st_init_numtable()
+          data.tbl = clone.m_tbl = st_init_numtable();
           data.klass = clone;
         //st_foreach(orig.m_tbl, clone_method, (st_data_t)&data);
         }
@@ -125,6 +125,16 @@ class Red::MethodCompiler
     <<-END
       function rb_mod_method(mod, vid) {
         return mnew(mod, Qundef, rb_to_id(vid), rb_cUnboundMethod);
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_mod_module_eval
+    add_function :specific_eval
+    <<-END
+      function rb_mod_module_eval(argc, argv, mod) {
+        return specific_eval(argc, argv, mod, mod);
       }
     END
   end

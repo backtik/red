@@ -108,6 +108,20 @@ class Red::MethodCompiler
     END
   end
   
+  # modified fixdivmod to return array instead of using pointers
+  def fix_mod
+    add_function :fixdivmod, :rb_num_coerce_bin
+    <<-END
+      function fix_mod(x, y) {
+        if (FIXNUM_P(y)) {
+          var mod = fixdivmod(FIX2LONG(x), FIX2LONG(y))[1];
+          return LONG2NUM(mod);
+        }
+        return rb_num_coerce_bin(x, y);
+      }
+    END
+  end
+  
   # CHECK
   def fix_odd_p
     <<-END
@@ -125,6 +139,15 @@ class Red::MethodCompiler
         if (FIXNUM_P(y)) { return LONG2NUM(FIX2LONG(x) + FIX2LONG(y)); }
         if (TYPE(y) == T_FLOAT) { return rb_float_new(FIX2LONG(x) + y.value); }
         return rb_num_coerce_bin(x, y);
+      }
+    END
+  end
+  
+  # verbatim
+  def fix_to_f
+    <<-END
+      function fix_to_f(num) {
+        return rb_float_new(FIX2LONG(num));
       }
     END
   end
@@ -155,6 +178,37 @@ class Red::MethodCompiler
     <<-END
       function fix_zero_p(num) {
         return (FIX2LONG(num) === 0) ? Qtrue : Qfalse
+      }
+    END
+  end
+  
+  # modified to return array [div, mod] instead of using pointers
+  def fixdivmod
+    add_function :rb_num_zerodiv
+    <<-END
+      function fixdivmod(x, y) {
+        var div;
+        var mod;
+        if (y == 0) { rb_num_zerodiv(); }
+        if (y < 0) {
+          if (x < 0) {
+            div = -x / -y;
+          } else {
+            div = -(x / -y);
+          }
+        } else {
+          if (x < 0) {
+            div = -(-x / y);
+          } else {
+            div = x / y;
+          }
+        }
+        mod = x - div * y;
+        if ((mod < 0 && y > 0) || (mod > 0 && y < 0)) {
+          mod += y;
+          div -= 1;
+        }
+        return [div, mod];
       }
     END
   end

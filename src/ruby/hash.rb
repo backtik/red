@@ -1,11 +1,20 @@
 class Red::MethodCompiler
+  # verbatim
+  def clear_i
+    <<-END
+      function clear_i(key, value, dummy) {
+        return ST_DELETE;
+      }
+    END
+  end
+  
   # CHECK
   def hash_alloc
-    add_function :hash_alloc0
+    add_function :hash_alloc0, :st_init_table
     <<-END
       function hash_alloc(klass) {
         var hash = hash_alloc0(klass);
-        hash.tbl = {};
+        hash.tbl = st_init_table(objhash);
         return hash;
       }
     END
@@ -22,15 +31,48 @@ class Red::MethodCompiler
     END
   end
   
-  # CHECK
+  # modified "num_entries" handling
+  def hash_equal
+    add_function :rb_respond_to, :rb_intern, :rb_equal, :rb_exec_recursive, :recursive_eql
+    add_method :to_hash
+    <<-END
+      function hash_equal(hash1, hash2, eql) {
+        var data = {};
+        if (hash1 == hash2) { return Qtrue; }
+        if (TYPE(hash2) != T_HASH) {
+          if (!rb_respond_to(hash2, rb_intern("to_hash"))) { return Qfalse; }
+          return rb_equal(hash2, hash1);
+        }
+        if (hash1.num_entries != hash2.num_entries) { return Qfalse; }
+        if (eql && !(rb_equal(hash1.ifnone, hash2.ifnone) && (FL_TEST(hash1, HASH_PROC_DEFAULT) == FL_TEST(hash2, HASH_PROC_DEFAULT)))) { return Qfalse; }
+        data.tbl = hash2.tbl;
+        data.eql = eql;
+        return rb_exec_recursive(recursive_eql, hash1, data);
+      }
+      
+    END
+  end
+  
+  # verbatim
+  def hash_foreach_call
+    add_function :st_foreach, :hash_foreach_iter, :rb_raise
+    <<-END
+      function hash_foreach_call(arg) {
+        if (st_foreach(arg.hash.tbl, hash_foreach_iter, arg)) { rb_raise(rb_eRuntimeError, "hash modified during iteration"); }
+        return Qnil;
+      }
+    END
+  end
+  
+  # verbatim
   def hash_foreach_ensure
     add_function :st_cleanup_safe
     <<-END
       function hash_foreach_ensure(hash) {
-        RHASH(hash).iter_lev--;
-        if (RHASH(hash).iter_lev === 0) {
+        hash.iter_lev--;
+        if (hash.iter_lev === 0) {
           if (FL_TEST(hash, HASH_DELETED)) {
-            st_cleanup_safe(RHASH(hash).tbl, Qundef);
+            st_cleanup_safe(hash.tbl, Qundef);
             FL_UNSET(hash, HASH_DELETED);
           }
         }
@@ -39,17 +81,16 @@ class Red::MethodCompiler
     END
   end
   
-  # CHECK
+  # verbatim
   def hash_foreach_iter
     add_function :rb_raise, :st_delete_safe
     <<-END
       function hash_foreach_iter(key, value, arg) {
         var status;
-        var tbl;
-        tbl = RHASH(arg.hash).tbl;
+        var tbl = arg.hash.tbl;
         if (key == Qundef) { return ST_CONTINUE; }
         status = arg.func(key, value, arg.arg);
-        if (RHASH(arg.hash).tbl != tbl) { rb_raise(rb_eRuntimeError, "rehash occurred during iteration"); }
+        if (arg.hash.tbl != tbl) { rb_raise(rb_eRuntimeError, "rehash occurred during iteration"); }
         switch (status) {
           case ST_DELETE:
             st_delete_safe(tbl, key, 0, Qundef);
@@ -60,6 +101,121 @@ class Red::MethodCompiler
             return ST_STOP;
         }
         return ST_CHECK;
+      }
+    END
+  end
+  
+  # modified so that hval is an array containing the hash value
+  def hash_i
+    <<-END
+      function hash_i(key, val, hval) {
+        if (key == Qundef) { return ST_CONTINUE; }
+        hval[0] ^= rb_hash(key);
+        hval[0] ^= rb_hash(val);
+        return ST_CONTINUE;
+      }
+    END
+  end
+  
+  # removed str_buf handling
+  def inspect_hash
+    add_function :rb_hash_foreach, :inspect_i
+    <<-END
+      function inspect_hash(hash) {
+        var str = rb_str_new("{");
+        rb_hash_foreach(hash, inspect_i, str);
+        str.ptr += '}';
+        OBJ_INFECT(str, hash);
+        return str;
+      }
+    END
+  end
+  
+  # removed str_buf handling
+  def inspect_i
+    add_function :rb_inspect
+    <<-END
+      function inspect_i(key, value, str) {
+        if (key == Qundef) { return ST_CONTINUE; }
+        if (str.ptr.length > 1) { str.ptr += ', '; }
+        var str2 = rb_inspect(key);
+        str.ptr += str2.ptr;
+        OBJ_INFECT(str, str2);
+        str.ptr += ' => ';
+        str2 = rb_inspect(value);
+        str.ptr += str2.ptr;
+        OBJ_INFECT(str, str2);
+        return ST_CONTINUE;
+      }
+    END
+  end
+  
+  # verbatim
+  def numcmp
+    <<-END
+      function numcmp(x, y) {
+        return x != y;
+      }
+    END
+  end
+  
+  # verbatim
+  def numhash
+    <<-END
+      function numhash(n) {
+        return n;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_any_cmp
+    add_function :rb_str_cmp, :rb_eql
+    <<-END
+      function rb_any_cmp(a, b) {
+        if (a == b) { return 0; }
+        if (FIXNUM_P(a) && FIXNUM_P(b)) { return a != b; }
+        if ((TYPE(a) == T_STRING) && (a.basic.klass == rb_cString) && (TYPE(b) == T_STRING) && (b.basic.klass == rb_cString)) { return rb_str_cmp(a, b); }
+        if ((a == Qundef) || (b == Qundef)) { return -1; }
+        if (SYMBOL_P(a) && SYMBOL_P(b)) { return a != b; }
+        return !rb_eql(a, b); // was "rb_with_disable_interrupt(eql, [a, b])"
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_any_hash
+    add_function :rb_str_hash, :rb_funcall
+    add_method :hash, :%
+    <<-END
+      function rb_any_hash(a) {
+        var hval;
+        var hnum;
+        switch (TYPE(a)) {
+          case T_FIXNUM:
+          case T_SYMBOL:
+            hnum = a;
+            break;
+          case T_STRING:
+            hnum = rb_str_hash(a);
+            break;
+          default:
+            hval = rb_funcall(a, id_hash, 0);
+            if (!FIXNUM_P(hval)) { hval = rb_funcall(hval, '%', 1, INT2FIX(536870923)); }
+            hnum = FIX2LONG(hval);
+        }
+        hnum <<= 1;
+        return hnum >> 1;
+      }
+    END
+  end
+  
+  def rb_hash
+    add_function :rb_funcall
+    add_method :hash
+    <<-END
+      function rb_hash(obj) {
+        return rb_funcall(obj, id_hash, 0);
       }
     END
   end
@@ -81,16 +237,29 @@ class Red::MethodCompiler
   
   # CHECK
   def rb_hash_aset
-    add_function :rb_hash_modify, :rb_str_new4
+    add_function :rb_hash_modify, :rb_str_new, :st_insert, :st_add_direct
     <<-END
       function rb_hash_aset(hash, key, val) {
       //rb_hash_modify(hash);
-        if (TYPE(key) != T_STRING || hash.tbl[key]) {
-          hash.tbl[key] = val;
+        if ((TYPE(key) != T_STRING) || st_lookup(hash.tbl, key, 0)[0]) {
+          st_insert(hash.tbl, key, val);
         } else {
-          hash.tbl[rb_str_new4(key)] = val;
+          key = rb_str_new(key.ptr);
+          st_add_direct(hash.tbl, rb_str_new(key.ptr), val);
         }
         return val;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_hash_clear
+    add_function :rb_hash_modify, :rb_hash_foreach, :clear_i
+    <<-END
+      function rb_hash_clear(hash) {
+        rb_hash_modify(hash);
+        if (hash.tbl.num_entries > 0) { rb_hash_foreach(hash, clear_i, 0); }
+        return hash;
       }
     END
   end
@@ -122,28 +291,17 @@ class Red::MethodCompiler
     END
   end
   
-  # CHECK
+  # verbatim
   def rb_hash_foreach
     add_function :rb_ensure, :hash_foreach_call, :hash_foreach_ensure
     <<-END
       function rb_hash_foreach(hash, func, farg) {
         var arg = {};
-        RHASH(hash).iter_lev++;
+        hash.iter_lev++;
         arg.hash = hash;
         arg.func = func;
         arg.arg  = farg;
-        rb_ensure(hash_foreach_call, arg, hash_foreach_ensure, hash);
-      }
-    END
-  end
-  
-  # CHECK
-  def rb_hash_foreach_call
-    add_function :st_foreach, :hash_foreach_iter, :rb_raise
-    <<-END
-      function rb_hash_foreach_call(arg) {
-        if (st_foreach(RHASH(arg.hash).tbl, hash_foreach_iter, arg)) { rb_raise(rb_eRuntimeError, "hash modified during iteration"); }
-        return Qnil;
+        rb_ensure(hash_foreach_call, arg, hash_foreach_ensure, hash); // &arg
       }
     END
   end
@@ -166,6 +324,16 @@ class Red::MethodCompiler
         var data = [Qfalse, val];
         rb_hash_foreach(hash, rb_hash_search_value, data);
         return data[0];
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_hash_hash
+    add_function :rb_exec_recursive, :recursive_hash
+    <<-END
+      function rb_hash_hash(hash) {
+        return rb_exec_recursive(recursive_hash, hash, 0);
       }
     END
   end
@@ -199,6 +367,18 @@ class Red::MethodCompiler
         if (hash.tbl === 0 || hash.tbl.length === 0) { return rb_str_new("{}"); }
         if (rb_inspecting_p(hash)) { return rb_str_new("{...}"); }
         return rb_protect_inspect(inspect_hash, hash, 0);
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_hash_modify
+    add_function :rb_raise, :rb_error_frozen
+    <<-END
+      function rb_hash_modify(hash) {
+        if (!hash.tbl) { rb_raise(rb_eTypeError, "uninitialized Hash"); }
+        if (OBJ_FROZEN(hash)) { rb_error_frozen("hash"); }
+        if (!OBJ_TAINTED(hash) && (ruby_safe_level >= 4)) { rb_raise(rb_eSecurityError, "Insecure: can't modify hash"); }
       }
     END
   end
@@ -284,7 +464,7 @@ class Red::MethodCompiler
     END
   end
   
-  # CHECK
+  # verbatim
   def rb_hash_to_hash
     <<-END
       function rb_hash_to_hash(hash) {
@@ -300,6 +480,30 @@ class Red::MethodCompiler
       function rb_hash_to_s(hash) {
         if (rb_inspecting_p(hash)) { return rb_str_new("{...}"); };
         return rb_protect_inspect(to_s_hash, hash, 0);
+      }
+    END
+  end
+  
+  # modified hash_i so that it takes a one-item array
+  def recursive_hash
+    add_function :hash_i, :rb_hash_foreach
+    <<-END
+      function recursive_hash(hash, dummy, recur) {
+        if (recur) { return LONG2FIX(0); }
+        var hval = [hash.tbl.num_entries];
+        rb_hash_foreach(hash, hash_i, hval);
+        return INT2FIX(hval[0]);
+      }
+    END
+  end
+  
+  # verbatim
+  def replace_i
+    add_function :rb_hash_aset
+    <<-END
+      function replace_i(key, val, hash) {
+        if (key != Qundef) { rb_hash_aset(hash, key, val); }
+        return ST_CONTINUE;
       }
     END
   end

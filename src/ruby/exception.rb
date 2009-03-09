@@ -29,8 +29,8 @@ class Red::MethodCompiler
     add_function :rb_scan_args, :rb_iv_set
     <<-END
       function exc_initialize(argc, argv, exc) {
-        var tmp = rb_scan_args(argc, argv, "01", true);
-        var arg = tmp[1];
+        var tmp = rb_scan_args(argc, argv, "01");
+        var arg = tmp[1] || Qnil;
         rb_iv_set(exc, 'mesg', arg);
         rb_iv_set(exc, 'bt', Qnil);
         return exc;
@@ -68,7 +68,7 @@ class Red::MethodCompiler
     END
   end
   
-  # verbatim
+  # changed call to "to_s"
   def exc_to_str
     add_function :rb_funcall
     add_method :to_s
@@ -110,17 +110,60 @@ class Red::MethodCompiler
     END
   end
   
-  # EMPTY
+  # modified string handling
   def name_err_mesg_to_str
+    add_function :rb_protect, :rb_inspect, :rb_any_to_s, :rb_str_new,
+                 :rb_obj_classname, :rb_f_sprintf
     <<-END
-      function name_err_mesg_to_str() {}
+      function name_err_mesg_to_str(obj) {
+        console.log(obj);
+        var ptr = obj.data;
+        var mesg = ptr[0];
+        if (NIL_P(mesg)) {
+          return Qnil;
+        } else {
+          var desc = 0;
+          var d = 0;
+          var args = [];
+          obj = ptr[1];
+          switch (TYPE(obj)) {
+            case T_NIL:
+              desc = "nil";
+              break;
+            case T_TRUE:
+              desc = "true";
+              break;
+            case T_FALSE:
+              desc = "false";
+              break;
+            default:
+              d = rb_protect(rb_inspect, obj, 0);
+              if (NIL_P(d) || (d.ptr.length > 65)) { d = rb_any_to_s(obj); }
+              desc = d.ptr;
+              break;
+          }
+          if (desc && (desc[0] != '#')) { d = rb_str_new(desc + ':' + rb_obj_classname(obj)); }
+          mesg = rb_f_sprintf(3, [mesg, ptr[2], d]);
+        }
+        if (OBJ_TAINTED(obj)) OBJ_TAINT(mesg);
+        return mesg;
+      }
     END
   end
   
-  # EMPTY
+  # verbatim
   def name_err_to_s
+    add_function :rb_attr_get, :rb_intern, :rb_class_name, :rb_iv_set
     <<-END
-      function name_err_to_s() {}
+      function name_err_to_s(exc) {
+        var mesg = rb_attr_get(exc, rb_intern("mesg"));
+        var str = mesg;
+        if (NIL_P(mesg)) { return rb_class_name(CLASS_OF(exc)); }
+        StringValue(str);
+        if (str != mesg) { rb_iv_set(exc, "mesg", mesg = str); }
+        if (OBJ_TAINTED(exc)) OBJ_TAINT(mesg);
+        return mesg;
+      }
     END
   end
   
@@ -196,6 +239,12 @@ class Red::MethodCompiler
     END
   end
   
+  def rb_exc_fatal
+    <<-END
+      
+    END
+  end
+  
   # CHECK
   def rb_exc_new
     add_function :rb_exc_new, :rb_funcall, :rb_str_new
@@ -229,9 +278,55 @@ class Red::MethodCompiler
     END
   end
   
+  # changed rb_exc_new2 to rb_exc_new
+  def rb_fatal
+    add_function :rb_exc_fatal, :rb_exc_new
+    <<-END
+      function rb_fatal(fmt) {
+        var args = [];
+        for (var i = 1, l = arguments.length; i < l; ++i) {
+          args[i - 1] = arguments[i];
+        }
+        var buf = jsprintf(fmt, args);
+        ruby_in_eval = 0;
+        rb_exc_fatal(rb_exc_new(rb_eFatal, buf)); // was rb_exc_new2
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_invalid_str
+    add_function :rb_str_inspect, :rb_str_new, :rb_raise
+    <<-END
+      function rb_invalid_str(str, type) {
+        var s = rb_str_inspect(rb_str_new(str));
+        rb_raise(rb_eArgError, "invalid value for %s: %s", type, s.ptr);
+      }
+    END
+  end
+  
+  # replaced va_list stuff with js arguments handling
+  def rb_name_error
+    add_function :rb_class_new_instance, :rb_exc_raise, :rb_str_new
+    <<-END
+      function rb_name_error(id, fmt) {
+        var args = [];
+        var argv = [];
+        for (var i = 2, l = arguments.length; i < l; ++i) {
+          args[i - 2] = arguments[i];
+        }
+        var buf = jsprintf(fmt, args);
+        argv[0] = rb_str_new(buf);
+        argv[1] = ID2SYM(id);
+        exc = rb_class_new_instance(2, argv, rb_eNameError);
+        rb_exc_raise(exc);
+      }
+    END
+  end
+  
   # CHECK
   def rb_raise
-    add_function :rb_exc_raise, :rb_exc_new, :jsprintf
+    add_function :rb_exc_raise, :rb_exc_new
     <<-END
       function rb_raise(exc, fmt) {
         for (var i = 2, ary = []; typeof(arguments[i]) != 'undefined'; ++i) { ary.push(arguments[i]); }

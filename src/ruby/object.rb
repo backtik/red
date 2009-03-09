@@ -50,6 +50,21 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def obj_respond_to
+    add_function :rb_method_boundp, :rb_scan_args, :rb_to_id
+    <<-END
+      function obj_respond_to(argc, argv, obj) {
+        var tmp = rb_scan_args(argc, argv, "11");
+        var mid = tmp[1];
+        var priv = tmp[2];
+        var id = rb_to_id(mid);
+        if (rb_method_boundp(CLASS_OF(obj), id, !RTEST(priv))) { return Qtrue; }
+        return Qfalse;
+      }
+    END
+  end
+  
   # simplified string builder
   def rb_any_to_s
     add_function :rb_str_new, :rb_obj_classname
@@ -83,6 +98,31 @@ class Red::MethodCompiler
       function rb_class_real(klass) {
         while (FL_TEST(klass, FL_SINGLETON) || (TYPE(klass) == T_ICLASS)) { klass = klass.superclass; }
         return klass;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_convert_type
+    add_function :convert_type, :rb_raise, :rb_obj_classname
+    <<-END
+      function rb_convert_type(val, type, tname, method) {
+        if (TYPE(val) == type) { return val; }
+        var v = convert_type(val, tname, method, Qtrue);
+        if (TYPE(v) != type) { rb_raise(rb_eTypeError, "%s#%s should return %s", rb_obj_classname(val), method, tname); }
+        return v;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_eql
+    add_function :rb_funcall
+    add_method :eql
+    <<-END
+      function rb_eql(obj1, obj2)
+      {
+        return RTEST(rb_funcall(obj1, id_eql, 1, obj2));
       }
     END
   end
@@ -130,6 +170,17 @@ class Red::MethodCompiler
     END
   end
   
+  # CHECK
+  def rb_f_sprintf
+    add_function :rb_str_format
+    <<-END
+      function rb_f_sprintf(argc, argv) {
+        if (argc === 0) { rb_raise(rb_eArgError, "too few arguments"); }
+        return rb_str_format(argc - 1, argv.slice(1), argv[0]);
+      }
+    END
+  end
+  
   # verbatim
   def rb_f_string
     add_function :rb_String
@@ -145,6 +196,33 @@ class Red::MethodCompiler
     <<-END
       function rb_false() {
         return Qfalse;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_Float
+    add_function :rb_float_new, :rb_big2dbl, :rb_str_to_dbl, :rb_raise, :rb_convert_type, :isnan
+    add_method :to_f
+    <<-END
+      function rb_Float(val) {
+        switch (TYPE(val)) {
+          case T_FIXNUM:
+            return rb_float_new(FIX2LONG(val));
+          case T_FLOAT:
+            return val;
+          case T_BIGNUM:
+            return rb_float_new(rb_big2dbl(val));
+          case T_STRING:
+            return rb_float_new(rb_str_to_dbl(val, Qtrue));
+          case T_NIL:
+            rb_raise(rb_eTypeError, "can't convert nil into Float");
+            break;
+          default:
+            var f = rb_convert_type(val, T_FLOAT, "Float", "to_f");
+            if (isnan(f.value)) { rb_raise(rb_eArgError, "invalid value for Float()"); }
+            return f;
+        }
       }
     END
   end

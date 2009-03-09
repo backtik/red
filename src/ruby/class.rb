@@ -1,12 +1,26 @@
 class Red::MethodCompiler
   # verbatim
+  def clone_method
+    add_function :rb_copy_node_scope, :st_insert
+    <<-END
+      function clone_method(mid, body, data) {
+        var fbody = body.nd_body;
+        if (fbody && (nd_type(fbody) == NODE_SCOPE)) { fbody = rb_copy_node_scope(fbody, ruby_cref); }
+        st_insert(data.tbl, mid, NEW_METHOD(fbody, body.nd_noex));
+        return ST_CONTINUE;
+      }
+    END
+  end
+  
+  # verbatim
   def include_class_new
+    add_function :st_init_numtable
     <<-END
       function include_class_new(module, superclass) {
         var klass = NEWOBJ();
         OBJSETUP(klass, rb_cClass, T_ICLASS);
         if (BUILTIN_TYPE(module) == T_ICLASS) { module = module.basic.klass; }
-        if (!module.iv_tbl) { module.iv_tbl = {}; } // was st_init_numtable
+        if (!module.iv_tbl) { module.iv_tbl = st_init_numtable(); }
         klass.iv_tbl = module.iv_tbl;
         klass.m_tbl = module.m_tbl;
         klass.superclass = superclass;
@@ -42,13 +56,14 @@ class Red::MethodCompiler
   
   # verbatim
   def rb_class_boot
+    add_function :st_init_numtable
     <<-END
       function rb_class_boot(superclass) {
         var klass = NEWOBJ();
         OBJSETUP(klass, rb_cClass, T_CLASS);
         klass.superclass = superclass;
         klass.iv_tbl = 0;
-        klass.m_tbl = {};
+        klass.m_tbl = st_init_numtable();
         OBJ_INFECT(klass, superclass);
         return klass;
       }
@@ -97,7 +112,7 @@ class Red::MethodCompiler
         klass.superclass = superclass;
         rb_make_metaclass(klass, superclass.basic.klass);
         rb_mod_initialize(klass);
-        rb_class_inherited(super, klass);
+        rb_class_inherited(superclass, klass);
         return klass;
       }
     END
@@ -364,13 +379,14 @@ class Red::MethodCompiler
   
   # changed st table to object
   def rb_module_new
+    add_function :st_init_numtable
     <<-END
       function rb_module_new() {
         var mdl = NEWOBJ();
         OBJSETUP(mdl, rb_cModule, T_MODULE);
         mdl.superclass = 0;
         mdl.iv_tbl = 0;
-        mdl.m_tbl = {}; // was st_init_numtable
+        mdl.m_tbl = st_init_numtable();
         return mdl;
       }
     END
@@ -426,11 +442,53 @@ class Red::MethodCompiler
   
   # changed st tables to js objects
   def rb_singleton_class_attached
+    add_function :st_init_numtable
     <<-END
       function rb_singleton_class_attached(klass, obj) {
         if (FL_TEST(klass, FL_SINGLETON)) {
-          if (!klass.iv_tbl) { klass.iv_tbl = {}; } // {} was st_init_numtable
-          klass.iv_tbl[rb_intern('__attached__')] = obj; // was st_insert
+          if (!klass.iv_tbl) { klass.iv_tbl = st_init_numtable(); }
+          st_insert(klass.iv_tbl, rb_intern('__attached__'), obj);
+        }
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_singleton_class_clone
+    add_function :st_copy, :st_init_numtable, :st_foreach, :rb_singleton_class_attached
+    <<-END
+      function rb_singleton_class_clone(obj) {
+        var klass = obj.basic.klass;
+        if (!FL_TEST(klass, FL_SINGLETON)) {
+          return klass;
+        } else {
+          /* copy singleton(unnamed) class */
+          var clone = NEWOBJ();
+          OBJSETUP(clone, 0, klass.basic.flags);
+          if (BUILTIN_TYPE(obj) == T_CLASS) {
+            clone.basic.klass = clone;
+          } else {
+            clone.basic.klass = rb_singleton_class_clone(klass);
+          }
+          clone.superclass = klass.superclass;
+          clone.iv_tbl = 0;
+          clone.m_tbl = 0;
+          if (klass.iv_tbl) { clone.iv_tbl = st_copy(klass.iv_tbl); }
+          var data = {};
+          data.tbl = clone.m_tbl = st_init_numtable();
+          switch (TYPE(obj)) {
+            case T_CLASS:
+            case T_MODULE:
+              data.klass = obj;
+              break;
+            default:
+              data.klass = 0;
+              break;
+          }
+          st_foreach(klass.m_tbl, clone_method, data);
+          rb_singleton_class_attached(clone.basic.klass, clone);
+          FL_SET(clone, FL_SINGLETON);
+          return clone;
         }
       }
     END

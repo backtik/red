@@ -9,6 +9,35 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def foreach_safe_i
+    <<-END
+      function foreach_safe_i(key, value, arg) {
+        if (key == Qundef) { return ST_CONTINUE; }
+        var status = arg.func(key, value, arg.arg);
+        if (status == ST_CONTINUE) { return ST_CHECK; }
+        return status;
+      }
+    END
+  end
+  
+  # added
+  def Init_st
+    add_function :rb_any_cmp, :rb_any_hash, :numcmp, :numhash
+    <<-END
+      function Init_st() {
+        objhash = {
+          'compare': rb_any_cmp,
+          'hash': rb_any_hash
+        };
+        type_numhash = {
+          'compare': numcmp,
+          'hash': numhash
+        };
+      }
+    END
+  end
+  
   # 
   def new_size
     <<-END
@@ -21,8 +50,37 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def rehash
+    add_function :new_size
+    <<-END
+      function rehash(table) {
+        var hash_val;
+        var ptr;
+        var next;
+        var old_num_bins = table.num_bins;
+        var new_num_bins = new_size(old_num_bins + 1);
+        var new_bins = {}; // (st_table_entry**)Calloc(new_num_bins, sizeof(st_table_entry*));
+        for (var i = 0; i < old_num_bins; ++i) {
+          ptr = table.bins[i];
+          while ((ptr || 0) !== 0) {
+            next = ptr.next;
+            hash_val = ptr.hash % new_num_bins;
+            ptr.next = new_bins[hash_val];
+            new_bins[hash_val] = ptr;
+            ptr = next;
+          }
+        }
+        delete(table.bins);
+        table.num_bins = new_num_bins;
+        table.bins = new_bins;
+      }
+    END
+  end
+  
   # 
   def st_add_direct
+    add_function :rehash
     <<-END
       function st_add_direct(table, key, value) {
         var hash_val = do_hash(key, table);
@@ -40,6 +98,65 @@ class Red::MethodCompiler
         var num_entries = table.num_entries;
         st_foreach(table, delete_never, never);
         table.num_entries = num_entries;
+      }
+    END
+  end
+  
+  # eliminated allocation handling
+  def st_copy
+    add_function :st_init_table
+    <<-END
+      function st_copy(old_table) {
+        var ptr;
+        var entry;
+        var new_table = st_init_table(old_table.type);
+        var num_bins = old_table.num_bins;
+        for(var i = 0; i < num_bins; i++) {
+          new_table.bins[i] = 0;
+          ptr = old_table.bins[i];
+          while ((ptr || 0) !== 0) {
+            entry = ptr;
+            entry.next = new_table.bins[i];
+            new_table.bins[i] = entry;
+            ptr = ptr.next;
+          }
+        }
+        return new_table;
+      }
+    END
+  end
+  
+  # modified to return [result, value] instead of using pointers
+  def st_delete
+    <<-END
+      function st_delete(table, key, value) {
+        var result = 0;
+        var hash_val = do_hash(key, table) % table.num_bins;
+        var ptr = table.bins[hash_val];
+        if ((ptr || 0) == 0) {
+          if (value !== 0) { value = 0; }
+          result = 0;
+        }
+        if ((key == ptr.key) || (table.type.compare(key, ptr.key) === 0)) {
+          table.bins[hash_val] = ptr.next;
+          table.num_entries--;
+          if (value !== 0) { value = ptr.record; }
+          key = ptr.key;
+          delete(ptr);
+          result = 1;
+        }
+        for(; (ptr.next || 0) !== 0; ptr = ptr.next) {
+          if ((ptr.next.key == key) || (table.type.compare(ptr.next.key, key) === 0)) {
+            var tmp = ptr.next;
+            ptr.next = ptr.next.next;
+            table.num_entries--;
+            if (value !== 0) { value = tmp.record; }
+            key = tmp.key;
+            delete(tmp);
+            result = 1;
+          }
+        }
+        return [result, value];
       }
     END
   end
@@ -115,6 +232,20 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def st_foreach_safe
+    add_function :st_foreach, :foreach_safe_i, :rb_raise
+    <<-END
+      function st_foreach_safe(table, func, a) {
+        var arg = {};
+        arg.tbl = table;
+        arg.func = func;
+        arg.arg = a;
+        if (st_foreach(table, foreach_safe_i, arg)) { rb_raise(rb_eRuntimeError, "hash modified during iteration"); }
+      }
+    END
+  end
+  
   # replaced "free" with JS "delete"
   def st_free_table
     <<-END
@@ -173,10 +304,12 @@ class Red::MethodCompiler
   
   # verbatim
   def st_insert
+    add_function :rehash
     <<-END
       function st_insert(table, key, value) {
         var hash_val = do_hash(key, table);
         var bin_pos = hash_val % table.num_bins;
+        if (!hash_val) { console.log(key); }
         var ptr = table.bins[bin_pos];
         if (((ptr || 0) !== 0) && ((ptr.hash != hash_val) || !((key == ptr.key) || (table.type.compare(key, ptr.key) === 0)))) {
           while (((ptr.next || 0) !== 0) && ((ptr.next.hash != hash_val) || !((key == ptr.next.key) || (table.type.compare(key, ptr.next.key) === 0)))) { ptr = ptr.next; }
@@ -198,6 +331,7 @@ class Red::MethodCompiler
     <<-END
       function st_lookup(table, key, value) {
         var result;
+        var value = value || 0;
         var hash_val = do_hash(key, table);
         var bin_pos = hash_val % table.num_bins;
         var ptr = table.bins[bin_pos];
@@ -205,10 +339,10 @@ class Red::MethodCompiler
           while (((ptr.next || 0) !== 0) && ((ptr.next.hash != hash_val) || !((key == ptr.next.key) || (table.type.compare(key, ptr.next.key) === 0)))) { ptr = ptr.next; }
           ptr = ptr.next;
         }
-        if (ptr == 0) {
+        if ((ptr || 0) === 0) {
           result = 0;
         } else {
-          if (value !== 0) { value = ptr.record; }
+          value = ptr.record;
           result = 1;
         }
         return [result, value];
