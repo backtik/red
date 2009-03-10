@@ -106,6 +106,9 @@ function r(line,type,a,b,c) {
     case NODE_FCALL:
       return NEW_FCALL(rb_intern(a), b);
     
+    case 0xfd: // Flo
+      return NEW_NODE(NODE_LIT, rb_float_new(a), 0, 0);
+    
     case NODE_GASGN:
       return NEW_GASGN(rb_intern(a), b);
     
@@ -145,7 +148,7 @@ function r(line,type,a,b,c) {
     case NODE_NOT:
       return NEW_NOT(a);
     
-    case 0xfd: // Num
+    case 0xfc: // Num
       return NEW_NODE(NODE_LIT,INT2FIX(a),0,0);
     
     case NODE_OR:
@@ -206,7 +209,7 @@ function r(line,type,a,b,c) {
       return NEW_XSTR(a);
     
     case NODE_ZARRAY:
-      return NEW_ZARRAy();
+      return NEW_ZARRAY();
     
     default:
       console.log('unimplemented node type ' + type + ' in ' + r)
@@ -220,7 +223,7 @@ function jsprintf(f,ary) {
       o.push(m[0]);
     } else if (m = /^\x25{2}/.exec(f)) { 
       o.push('%');
-    } else if (m = /^\x25(?:(\d+)\$)?(\+)?(0|'[^$])?(-)?(\d+)?(?:\.(\d+))?([b-fosuxX])/.exec(f)) {
+    } else if (m = /^\x25(?:(\d+)\$)?(\+)?(0|'[^$])?(-)?(\d+)?(?:\.(\d+))?([b-gosuxX])/.exec(f)) {
       if (((a = ary[m[1] || i++]) === null) || (typeof(a) == 'undefined')) { return o.join(''); } //throw("Too few arguments passed to sprintf"); }
       if (/[^s]/.test(m[7]) && (typeof(a) != 'number')) { throw("Expecting number but found " + typeof(a)); }
       switch (m[7]) {
@@ -229,6 +232,7 @@ function jsprintf(f,ary) {
         case 'd': a = parseInt(a); break;
         case 'e': a = m[6] ? a.toExponential(m[6]) : a.toExponential(); break;
         case 'f': a = m[6] ? parseFloat(a).toFixed(m[6]) : parseFloat(a); break;
+        case 'g': a = m[6] ? Number(String(parseFloat(a).toFixed(m[6]))) : Number(String(parseFloat(a))); break;
         case 'o': a = a.toString(8); break;
         case 's': a = ((a = String(a)) && m[6] ? a.substring(0, m[6]) : a); break;
         case 'u': a = Math.abs(a); break;
@@ -334,4 +338,36 @@ function red_init_bullshit() {
     T_NODE:   'Node',
     T_UNDEF:  'undef'
   };
+  
+  primes = [
+    8 + 3,
+    16 + 3,
+    32 + 5,
+    64 + 3,
+    128 + 3,
+    256 + 27,
+    512 + 9,
+    1024 + 9,
+    2048 + 5,
+    4096 + 3,
+    8192 + 27,
+    16384 + 43,
+    32768 + 3,
+    65536 + 45,
+    131072 + 29,
+    262144 + 3,
+    524288 + 21,
+    1048576 + 7,
+    2097152 + 17,
+    4194304 + 15,
+    8388608 + 9,
+    16777216 + 43,
+    33554432 + 35,
+    67108864 + 15,
+    134217728 + 29,
+    268435456 + 3,
+    536870912 + 11,
+    1073741824 + 85,
+    0
+  ]
 }

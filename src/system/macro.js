@@ -69,11 +69,6 @@ function DMETHOD_P() {
 }
 
 // verbatim
-function return_value(v) {
-  if ((prot_tag.retval = v) == Qundef) { prot_tag.retval = Qnil; }
-}
-
-// verbatim
 function nd_set_type(n, t) {
   n.flags = ((n.flags & ~FL_UMASK) | ((t << FL_USHIFT) & FL_UMASK));
 }

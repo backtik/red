@@ -1,4 +1,5 @@
 require 'src/ruby/array'
+require 'src/ruby/bignum'
 require 'src/ruby/class'
 require 'src/ruby/comparable'
 require 'src/ruby/data'
@@ -18,11 +19,13 @@ require 'src/ruby/numeric'
 require 'src/ruby/object'
 require 'src/ruby/proc'
 require 'src/ruby/range'
+require 'src/ruby/st'
 require 'src/ruby/string'
 require 'src/ruby/struct'
 require 'src/ruby/symbol'
+require 'src/ruby/time'
 require 'src/ruby/true'
-require 'src/ruby/comparable'
+require 'src/ruby/variable'
 require 'src/redshift/accessors'
 require 'src/redshift/browser'
 require 'src/redshift/classes'
@@ -37,13 +40,15 @@ require 'src/redshift/styles'
 require 'src/redshift/user_event'
 class Red::MethodCompiler
   attr_reader :functions
+  attr_accessor :compiled_functions
   
   Ruby = Object.new
   
   def initialize
-    @compiled_functions = []
+    @compiled_functions = {}
     @missing_functions  = []
     @functions          = ""
+    @function_stub      = 'a0a'
     
     @compiled_methods = []
     @missing_methods  = []
@@ -56,14 +61,13 @@ class Red::MethodCompiler
   
   def add_functions(*functions_to_compile)
     functions_to_compile.each do |function|
-      next if @compiled_functions.include?(function)
-      @compiled_functions |= [function]
+      next if @compiled_functions.keys.include?(function)
+      @compiled_functions[function] = @function_stub.succ!.dup
       result = 
     begin
       self.send(function)
     rescue NoMethodError
-      ""
-    # "        console.log(\"missing JS function '%s'\");\n" % function
+      "        console.log(\"%s\");\n" % function
     end
       @functions += result
     end
@@ -107,8 +111,8 @@ class Red::MethodCompiler
     def %
       $mc.add_function :rb_str_format_m, :fix_mod, :flo_mod
       <<-END
-        rb_define_method(rb_cString, "%", rb_str_format_m, 1);
-        rb_define_method(rb_cFixnum, "%", fix_mod, 1);
+      //rb_define_method(rb_cString, "%", rb_str_format_m, 1);
+      //rb_define_method(rb_cFixnum, "%", fix_mod, 1);
         rb_define_method(rb_cFloat, "%", flo_mod, 1);
       END
     end
@@ -162,9 +166,9 @@ class Red::MethodCompiler
     def -
       $mc.add_function :rb_ary_diff, :fix_minus, :flo_minus
       <<-END
-        rb_define_method(rb_cArray, "-", rb_ary_diff, 1);
-        rb_define_method(rb_cFloat, "-", flo_minus, 1);
-        rb_define_method(rb_cFixnum, "-", fix_minus, 1);
+      //rb_define_method(rb_cArray, "-", rb_ary_diff, 1);
+      //rb_define_method(rb_cFloat, "-", flo_minus, 1);
+      //rb_define_method(rb_cFixnum, "-", fix_minus, 1);
       END
     end
     
@@ -219,11 +223,11 @@ class Red::MethodCompiler
       $mc.add_functions :rb_mod_cmp, :rb_str_cmp_m, :rb_ary_cmp, :rb_num_cmp,
                         :fix_cmp, :flo_cmp
       <<-END
-        rb_define_method(rb_cModule, "<=>",  rb_mod_cmp, 1);
-        rb_define_method(rb_cFloat, "<=>", flo_cmp, 1);
-        rb_define_method(rb_cNumeric, "<=>", num_cmp, 1);
+      //rb_define_method(rb_cModule, "<=>",  rb_mod_cmp, 1);
+      //rb_define_method(rb_cFloat, "<=>", flo_cmp, 1);
+      //rb_define_method(rb_cNumeric, "<=>", num_cmp, 1);
         rb_define_method(rb_cString, "<=>", rb_str_cmp_m, 1);
-        rb_define_method(rb_cArray, "<=>", rb_ary_cmp, 1);
+      //rb_define_method(rb_cArray, "<=>", rb_ary_cmp, 1);
         rb_define_method(rb_cFixnum, "<=>", fix_cmp, 1);
      END
     end
@@ -1522,13 +1526,13 @@ class Red::MethodCompiler
       $mc.add_function :rb_obj_id, :range_hash, :rb_hash_hash, :rb_str_hash_m,
                        :rb_ary_hash, :flo_hash, :rb_struct_hash
       <<-END
-        rb_define_method(rb_cRange, "hash", range_hash, 0);
-        rb_define_method(rb_cStruct, "hash", rb_struct_hash, 0);
+      //rb_define_method(rb_cRange, "hash", range_hash, 0);
+      //rb_define_method(rb_cStruct, "hash", rb_struct_hash, 0);
         rb_define_method(rb_cString, "hash", rb_str_hash_m, 0);
         rb_define_method(rb_mKernel, "hash", rb_obj_id, 0);
         rb_define_method(rb_cFloat, "hash", flo_hash, 0);
-        rb_define_method(rb_cHash,"hash", rb_hash_hash, 0);
-        rb_define_method(rb_cArray, "hash", rb_ary_hash, 0);
+      //rb_define_method(rb_cHash,"hash", rb_hash_hash, 0);
+      //rb_define_method(rb_cArray, "hash", rb_ary_hash, 0);
       END
     end
     
@@ -2495,6 +2499,13 @@ class Red::MethodCompiler
       END
     end
     
+    def rand
+      add_function :rb_define_global_function, :rb_f_rand
+      <<-END
+        rb_define_global_function("rand", rb_f_rand, -1);
+      END
+    end
+    
     def rassoc
       $mc.add_function :rb_ary_rassoc
       <<-END
@@ -2641,8 +2652,9 @@ class Red::MethodCompiler
     end
     
     def respond_to?
+      $mc.add_function :obj_respond_to
       <<-END
-        console.log('missing respond_to?');
+        rb_define_method(rb_mKernel, "respond_to?", obj_respond_to, -1);
       END
     end
     
@@ -2980,6 +2992,13 @@ class Red::MethodCompiler
       $mc.add_function :rb_str_squeeze_bang
       <<-END
         rb_define_method(rb_cString, "squeeze!", rb_str_squeeze_bang, -1);
+      END
+    end
+    
+    def srand
+      add_function :rb_define_global_function, :rb_f_srand
+      <<-END
+        rb_define_global_function("srand", rb_f_srand, -1);
       END
     end
     
@@ -3621,6 +3640,16 @@ class Red::MethodCompiler
     end
     
     # verbatim
+    def Init_Bignum
+      add_function :rb_define_class
+      <<-END
+        function Init_Bignum() {
+          rb_cBignum = rb_define_class("Bignum", rb_cInteger);
+        }
+      END
+    end
+    
+    # verbatim
     def Init_Binding
       add_function :rb_define_class, :rb_undef_alloc_func, :rb_undef_method
       <<-END
@@ -3886,18 +3915,16 @@ class Red::MethodCompiler
       END
     end
     
-    # CHECK
+    # moved id definitions to init_ids, removed "envtable" stuff
     def Init_Hash
       add_function :rb_define_class, :rb_include_module,
-                   :rb_define_alloc_func, :rb_hash_s_new,
+                   :rb_define_alloc_func,
                    :rb_define_global_const, :hash_alloc
       <<-END
         function Init_Hash() {
           rb_cHash = rb_define_class("Hash", rb_cObject);
           rb_include_module(rb_cHash, rb_mEnumerable);
           rb_define_alloc_func(rb_cHash, hash_alloc);
-        //envtbl = rb_hash_s_new(0, NULL, rb_cHash);
-        //rb_define_global_const("ENV", envtbl);
         }
       END
     end
@@ -4014,7 +4041,7 @@ class Red::MethodCompiler
         
           rb_define_method(rb_cIO, "initialize", rb_io_initialize, -1);
           
-        //rb_output_fs = Qnil;
+          rb_output_fs = Qnil;
         //rb_define_hooked_variable("$,", &rb_output_fs, 0, rb_str_setter);
         
         //rb_global_variable(&rb_default_rs);
@@ -4173,6 +4200,18 @@ class Red::MethodCompiler
     def Init_MatchData
       <<-END
         function Init_MatchData() {}
+      END
+    end
+    
+    # verbatim
+    def Init_Math
+      add_function :rb_define_module, :rb_define_const, :rb_float_new
+      <<-END
+        function Init_Math() {
+          rb_mMath = rb_define_module("Math");
+          rb_define_const(rb_mMath, "PI", rb_float_new(Math.PI));
+          rb_define_const(rb_mMath, "E", rb_float_new(Math.E));
+        }
       END
     end
     
@@ -4392,6 +4431,17 @@ class Red::MethodCompiler
       END
     end
     
+    def Init_Time
+      add_function :time_s_alloc, :rb_define_class, :rb_include_module
+      <<-END
+        function Init_Time() {
+          rb_cTime = rb_define_class("Time", rb_cObject);
+          rb_include_module(rb_cTime, rb_mComparable);
+          rb_define_alloc_func(rb_cTime, time_s_alloc);
+        }
+      END
+    end
+    
     # pulled from Init_Object
     def Init_TrueClass
       add_function :rb_define_class, :rb_undef_alloc_func, :rb_undef_method, :rb_define_global_const
@@ -4450,16 +4500,17 @@ class Red::MethodCompiler
                     :Init_FalseClass, :Init_Comparable, :Init_Enumerable,
                     :Init_Precision, :Init_eval, :Init_String,
                     :Init_Exception, :Init_Numeric, :Init_Bignum,
-                    :Init_syserr, :Init_Array, :Init_Hash, :Init_Struct,
+                    :Init_Array, :Init_Hash, :Init_Struct,
                     :Init_Regexp, :Init_Range, :Init_IO, :Init_Time,
-                    :Init_Random, :Init_Proc, :Init_Binding, :Init_Math,
-                    :Init_Enumerator, :Init_version, :Init_UserEvent,
+                    :Init_Proc, :Init_Binding, :Init_Math,
+                    :Init_Enumerator, :Init_UserEvent,
                     :Init_Document, :Init_Element, :Init_Method,
                     :Init_UnboundMethod, :Init_MatchData, :Init_Event,
                     :Init_Browser, :Init_CodeEvent, :Init_Request,
-                    :Init_Response, :Init_accessors
+                    :Init_Response, :Init_accessors, :Init_st
       <<-END
         function rb_call_inits() {
+          Init_st();
           Init_sym();
           Init_ids();
           Init_var_tables();
@@ -4479,7 +4530,7 @@ class Red::MethodCompiler
           Init_String();
           Init_Exception();
           Init_Numeric();
-        //Init_Bignum();
+          Init_Bignum();
         //Init_syserr();
           Init_Array();
           Init_Hash();
@@ -4488,13 +4539,12 @@ class Red::MethodCompiler
           Init_MatchData();
           Init_Range();
           Init_IO();
-        //Init_Time();
-        //Init_Random();
+          Init_Time();
           Init_Proc();
           Init_Method();
           Init_UnboundMethod();
           Init_Binding();
-        //Init_Math();
+          Init_Math();
           Init_Enumerator();
         //Init_version();
           
@@ -4513,8 +4563,8 @@ class Red::MethodCompiler
     
     # CHECK CHECK CHECK
     def ruby_init
-      add_functions :rb_call_inits, :rb_define_global_const, :rb_f_binding,
-                    :rb_node_newnode, :top_local_init, :local_cnt
+      add_functions :rb_call_inits, :rb_define_global_const, :rb_node_newnode,
+                    :top_local_init, :local_cnt, :error_print#, :rb_f_binding
       <<-END
         function ruby_init() {
           red_init_bullshit();
@@ -4627,7 +4677,7 @@ class Red::MethodCompiler
     
     # changed rb_str_new2 to rb_str_new, modified to use jsprintf instead of snprintf
     def backtrace
-      add_function :ruby_set_current_source, :jsprintf, :rb_id2name,
+      add_function :ruby_set_current_source, :rb_id2name,
                    :rb_ary_push, :rb_str_new
       <<-END
         function backtrace(lev) {
@@ -4821,7 +4871,7 @@ class Red::MethodCompiler
     
     # expanded rb_ary_new4
     def call_cfunc
-      add_function :rb_raise, :rb_ary_new, :rb_ary_new4
+      add_function :rb_raise, :rb_ary_new
       <<-END
         function call_cfunc(func, recv, len, argc, argv) {
           if (len >= 0 && argc != len) { rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)", argc, len); }
@@ -4931,11 +4981,30 @@ class Red::MethodCompiler
       END
     end
     
+    # verbatim
+    def error_pos
+      add_function :ruby_set_current_source, :warn_printf, :rb_id2name
+      <<-END
+        function error_pos() {
+          ruby_set_current_source();
+          if (ruby_sourcefile) {
+            if (ruby_frame.last_func) {
+              warn_printf("%s:%d:in `%s'", ruby_sourcefile, ruby_sourceline, rb_id2name(ruby_frame.orig_func));
+            } else if (ruby_sourceline == 0) {
+              warn_printf("%s", ruby_sourcefile);
+            } else {
+              warn_printf("%s:%d", ruby_sourcefile, ruby_sourceline);
+            }
+          }
+        }
+      END
+    end
+    
     # added console.log command here, as in io_puts
     def error_print
       add_function :get_backtrace, :ruby_set_current_source, :warn_printf,
                    :error_pos, :rb_write_error, :rb_intern, :rb_class_name,
-                   :rb_funcall
+                   :rb_funcall, :rb_intern
       add_method :message
       <<-END
         function error_print() {
@@ -5032,7 +5101,7 @@ class Red::MethodCompiler
     
     # removed "autoload" call
     def ev_const_get
-      add_function :rb_const_get
+      add_function :rb_const_get, :st_lookup
       <<-END
         function ev_const_get(cref, id, self) {
           var cbase = cref;
@@ -5040,14 +5109,49 @@ class Red::MethodCompiler
           while (cbase && cbase.nd_next) {
             var klass = cbase.nd_clss;
             if (!NIL_P(klass)) {
-              while (klass.iv_tbl && (result = klass.iv_tbl[id])) { // was st_lookup
-                if (result == Qundef) { continue; } // removed "autoload" call
-                return result;
+              while (klass.iv_tbl && (result = st_lookup(klass.iv_tbl, id))[0]) {
+                if (result[1] == Qundef) { continue; } // removed "autoload" call
+                return result[1];
               }
             }
             cbase = cbase.nd_next;
           }
           return rb_const_get(NIL_P(cref.nd_clss) ? CLASS_OF(self) : cref.nd_clss, id);
+        }
+      END
+    end
+    
+    # verbatim
+    def exec_under
+      <<-END
+        function exec_under(func, under, cbase, args) {
+          var val = Qnil; /* OK */
+          var state = 0;
+          var mode;
+          var f = ruby_frame;
+          PUSH_CLASS(under);
+          PUSH_FRAME();
+          ruby_frame.self = f.self;
+          ruby_frame.last_func = f.last_func;
+          ruby_frame.orig_func = f.orig_func;
+          ruby_frame.last_class = f.last_class;
+          ruby_frame.argc = f.argc;
+          if (cbase) { PUSH_CREF(cbase); }
+          mode = scope_vmode;
+          SCOPE_SET(SCOPE_PUBLIC);
+          PUSH_TAG(PROT_NONE);
+          try { // was EXEC_TAG
+            val = func(args);
+          } catch(x) {
+            if (typeof(state = x) != 'number') { throw(state); }
+          }
+          POP_TAG();
+          if (cbase) { POP_CREF(); }
+          SCOPE_SET(mode);
+          POP_FRAME();
+          POP_CLASS();
+          if (state) { JUMP_TAG(state); }
+          return val;
         }
       END
     end
@@ -5109,6 +5213,16 @@ class Red::MethodCompiler
       <<-END
         function is_defined() {
           rb_raise(rb_eRuntimeError, "Red doesn't support 'defined?'");
+        }
+      END
+    end
+    
+    # verbatim
+    def iterate_method
+      add_function :rb_funcall2
+      <<-END
+        function iterate_method(arg) {
+          return rb_funcall2(arg.obj, arg.mid, arg.argc, arg.argv);
         }
       END
     end
@@ -5183,6 +5297,45 @@ class Red::MethodCompiler
       <<-END
         function make_backtrace() {
           return backtrace(-1);
+        }
+      END
+    end
+    
+    # expanded rb_ary_new4
+    def massign
+      add_function :assign, :rb_raise, :rb_ary_new
+      <<-END
+        function massign(self, node, val, pcall) {
+          var len = val.ptr.length;
+          var list = node.nd_head;
+          for (var i = 0, p = val.ptr; list && (i < len); i++) {
+            assign(self, list.nd_head, p[i], pcall);
+            list = list.nd_next;
+          }
+          if (pcall && list) {
+            while (list) { i++; list = list.nd_next; }
+            rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)", len, i);
+          }
+          if (node.nd_args) {
+            if (node.nd_args == -1) {
+              /* no check for mere `*' */
+            } else if (!list && (i < len)) {
+              var ary = rb_ary_new();
+              MEMCPY(ary.ptr, p.slice(i), len - i);
+              assign(self, node.nd_args, ary, pcall); // changed rb_ary_new4(len-i, p + i)
+            } else {
+              assign(self, node.nd_args, rb_ary_new(), pcall);
+            }
+          } else if (pcall && (i < len)) {
+            while (list) { i++; list = list.nd_next; }
+            rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)", len, i);
+          }
+          while (list) {
+            i++;
+            assign(self, list.nd_head, Qnil, pcall);
+            list = list.nd_next;
+          }
+          return val;
         }
       END
     end
@@ -5308,9 +5461,40 @@ class Red::MethodCompiler
       END
     end
     
+    def print_undef
+      add_function :rb_name_error, :rb_id2name, :rb_class2name
+      <<-END
+        function print_undef(klass, id) {
+          rb_name_error(id, "undefined method '%s' for %s `%s'", rb_id2name(id), (TYPE(klass) == T_MODULE) ? "module" : "class", rb_class2name(klass));
+        }
+      END
+    end
+    
+    # verbatim
+    def proc_jump_error
+      add_function :localjump_error
+      <<-END
+        function proc_jump_error(state, result) {
+          var statement;
+          switch (state) {
+            case TAG_BREAK:
+              statement = "break"; break;
+            case TAG_RETURN:
+              statement = "return"; break;
+            case TAG_RETRY:
+              statement = "retry"; break;
+            default:
+              statement = "local-jump"; break; /* should not happen */
+          }
+          var mesg = jsprintf("%s from proc-closure", [statement]);
+          localjump_error(mesg, result, state);
+        }
+      END
+    end
+    
     # verbatim
     def rb_add_method
-      add_function :rb_raise, :rb_intern, :rb_error_frozen, :rb_clear_cache_by_id, :rb_funcall, :rb_iv_get
+      add_function :rb_raise, :rb_intern, :rb_error_frozen, :rb_clear_cache_by_id, :rb_funcall, :rb_iv_get, :st_insert
       add_method :singleton_method_added, :method_added
       <<-END
         function rb_add_method(klass, mid, node, noex) {
@@ -5326,7 +5510,7 @@ class Red::MethodCompiler
           if (OBJ_FROZEN(klass)) { rb_error_frozen("class/module"); }
           rb_clear_cache_by_id(mid);
           body = NEW_METHOD(node, NOEX_WITH_SAFE(noex));
-          klass.m_tbl[mid] = body; // was st_insert
+          st_insert(klass.m_tbl, mid, body);
           if (node && (mid != ID_ALLOCATOR) && ruby_running) {
             if (FL_TEST(klass, FL_SINGLETON)) {
               rb_funcall(rb_iv_get(klass, "__attached__"), singleton_added, 1, ID2SYM(mid));
@@ -5340,7 +5524,7 @@ class Red::MethodCompiler
     
     # expanded search_method
     def rb_alias
-      add_function :rb_frozen_class_p, :search_method, :print_undef, :rb_iv_get, :rb_clear_cache_by_id, :rb_funcall
+      add_function :rb_frozen_class_p, :search_method, :print_undef, :rb_iv_get, :rb_clear_cache_by_id, :rb_funcall, :st_insert
       add_method :singleton_method_added, :method_added
       <<-END
         function rb_alias(klass, name, def) {
@@ -5373,7 +5557,7 @@ class Red::MethodCompiler
           }
           rb_clear_cache_by_id(name);
           // removed warning
-          klass.m_tbl[name] = NEW_METHOD(NEW_FBODY(body, def, origin), NOEX_WITH_SAFE(orig.nd_noex)); // was st_insert
+          st_insert(klass.m_tbl, name, NEW_METHOD(NEW_FBODY(body, def, origin), NOEX_WITH_SAFE(orig.nd_noex)));
           if (!ruby_running) { return; }
           if (singleton) {
             rb_funcall(singleton, singleton_added, 1, ID2SYM(name));
@@ -5409,6 +5593,21 @@ class Red::MethodCompiler
           attriv = rb_intern('@' + name);
           if (read) { rb_add_method(klass, id, NEW_IVAR(attriv), noex); }
           if (write) { rb_add_method(klass, rb_id_attrset(id), NEW_ATTRSET(attriv), noex); }
+        }
+      END
+    end
+    
+    # verbatim
+    def rb_block_call
+      add_function :iterate_method
+      <<-END
+        function rb_block_call(obj, mid, argc, argv, bl_proc, data2) {
+          var arg = {};
+          arg.obj = obj;
+          arg.mid = mid;
+          arg.argc = argc;
+          arg.argv = argv;
+          return rb_iterate(iterate_method, arg, bl_proc, data2);
         }
       END
     end
@@ -5458,8 +5657,8 @@ class Red::MethodCompiler
             noex  = tmp[3];
             if (body === 0) {
               if (scope == 3) { return method_missing(recv, mid, argc, argv, CSTAT_SUPER); }
-              console.log(klass, recv, mid, argc, argv, scope, self);
-              throw('fail');
+            //console.log(klass, recv, mid, argc, argv, scope, self);
+            //throw('fail');
               return method_missing(recv, mid, argc, argv, scope == 2 ? CSTAT_VCALL : 0);
             }
           }
@@ -5481,7 +5680,7 @@ class Red::MethodCompiler
     
     # CHECK
     def rb_call0
-      add_function :rb_raise, :call_cfunc
+      add_function :rb_raise, :call_cfunc, :jump_tag_but_local_jump
       <<-END
         function rb_call0(klass, recv, id, oid, argc, argv, body, flags) {
           var b2;
@@ -5826,7 +6025,6 @@ class Red::MethodCompiler
     
     # removed thread check
     def rb_ensure
-      add_function :return_value
       <<-END
         function rb_ensure(b_proc, data1, e_proc, data2) {
           var state;
@@ -5852,7 +6050,8 @@ class Red::MethodCompiler
     def rb_eval
       add_function :ev_const_get, :rb_dvar_ref, :block_pass, :rb_hash_new,
                    :rb_hash_aset, :rb_alias, :rb_to_id, :rb_ary_new,
-                   :local_tbl, :module_setup, :class_prefix
+                   :local_tbl, :module_setup, :class_prefix, :rb_copy_node_scope,
+                   :rb_const_get_from
       <<-END
         function rb_eval(self, node) {
           ruby_current_node = node;
@@ -6090,12 +6289,12 @@ class Red::MethodCompiler
                     if (FIXNUM_P(recv) || SYMBOL_P(recv)) { rb_raise(rb_eTypeError, "can't define singleton method '%s' for %s", rb_id2name(node.nd_mid, rb_obj_classname(recv))); }
                     if (OBJ_FROZEN(recv)) { rb_error_frozen("object"); }
                     var klass = rb_singleton_class(recv);
-                    if ((data = klass.m_tbl[node.nd_mid])) {
-                      body = data;
+                    if ((data = st_lookup(klass.m_tbl, node.nd_mid))[0]) {
+                      body = data[1];
                       if (ruby_safe_level >= 4) { rb_raise(rb_eSecurityError, "redefining method prohibited"); }
                     }
                     var defn = rb_copy_node_scope(node.nd_defn, ruby_cref);
-                    rb_add_method(klass, node.nd_mid, defn, NOEX_PUBLIC|(body?body.nd_noex&NOEX_UNDEF:0));
+                    rb_add_method(klass, node.nd_mid, defn, NOEX_PUBLIC | (body ? body.nd_noex & NOEX_UNDEF : 0));
                     result = Qnil;
                   }
                   break;
@@ -6175,12 +6374,12 @@ class Red::MethodCompiler
                 case NODE_EVSTR:
                   result = rb_obj_as_string(rb_eval(self, node.nd_body));
                   break;
-
+                
                 // verbatim
                 case NODE_FALSE:
                   RETURN(Qfalse);
                   break;
-
+                
                 case NODE_FCALL:
                   var argc;
                   var argv;
@@ -6191,35 +6390,35 @@ class Red::MethodCompiler
                   ruby_current_node = node;
                   result = rb_call(CLASS_OF(self), self, node.nd_mid, argc, argv, 1, self);
                   break;
-
+                
                 case NODE_GASGN:
                   result = rb_eval(self, node.nd_value);
                   rb_gvar_set(node.nd_entry, result);
                   break;
-
+                
                 case NODE_GVAR:
                   result = rb_gvar_get(node.nd_entry);
                   break;
-
+                
+                // modified hash to build from JS array rather than linked list
                 case NODE_HASH:
                   var hash = rb_hash_new();
-                  var ary = node.nd_head;
+                  var list = node.nd_head;
                   var key;
                   var val;
-
-                  for (var i = 0, l = ary.length; i < l; ++i) {
-                    key = rb_eval(self, ary[i]);
-                    val = rb_eval(self, ary[++i]);
+                  for (var i = 0, l = list.length; i < l; ++i) {
+                    key = rb_eval(self, list[i]);
+                    val = rb_eval(self, list[++i]);
                     rb_hash_aset(hash, key, val);
                   }
                   result = hash;
                   break;
-
+                
                 case NODE_IASGN:
                   result = rb_eval(self, node.nd_value);
                   rb_ivar_set(self, node.nd_vid, result);
                   break;
-
+                  
                 // verbatim
                 case NODE_IF:
                   node = RTEST(rb_eval(self, node.nd_cond)) ? node.nd_body : node.nd_else; // removed event hooks
@@ -6711,6 +6910,46 @@ class Red::MethodCompiler
       END
     end
     
+    # unwound "goto" architecture, expanded EXEC_TAG
+    def rb_iterate
+      <<-END
+        function rb_iterate(it_proc, data1, bl_proc, data2) {
+          var state = 0;
+          var retval = Qnil;
+          var node = NEW_IFUNC(bl_proc, data2);
+          var self = ruby_top_self;
+          PUSH_TAG(PROT_LOOP);
+          PUSH_BLOCK(0, node);
+          PUSH_ITER(ITER_PRE);
+          do { // added to handle "goto iter_retry"
+            var goto_iter_retry = 0;
+            try { // was EXEC_TAG
+              retval = it_proc(data1);
+            } catch (x) {
+              if (typeof(state = x) != 'number') { throw(state); }
+              if ((state == TAG_BREAK) && TAG_DST()) {
+                retval = prot_tag.retval;
+                state = 0;
+              } else if (state == TAG_RETRY) {
+                state = 0;
+                goto_iter_retry = 1;
+              }
+            }
+          } while (goto_iter_retry);
+          POP_ITER();
+          POP_BLOCK();
+          POP_TAG();
+          switch (state) {
+            case 0:
+              break;
+            default:
+              JUMP_TAG(state);
+          }
+          return retval;
+        }
+      END
+    end
+    
     # CHECK
     def rb_longjmp
       add_function :rb_exc_new, :ruby_set_current_source, :get_backtrace,
@@ -6848,7 +7087,26 @@ class Red::MethodCompiler
         }
       END
     end
-                                                                                                                                                          
+    
+    # removed cont_protect stuff, modified to return array [result, status] instead of using pointers
+    def rb_protect
+      <<-END
+        function rb_protect(proc, data) {
+          var result = Qnil;
+          var status = 0;
+          PUSH_TAG(PROT_NONE);
+          try { // was EXEC_TAG
+            result = proc(data);
+          } catch (x) {
+            if (typeof(status = x) != "number") { throw(status); }
+          }
+          POP_TAG();
+          if (status != 0) { return [Qnil, status]; }
+          return [result, 0];
+        }
+      END
+    end
+    
     # verbatim
     def rb_raise_jump
       add_function :rb_longjmp
@@ -6871,6 +7129,53 @@ class Red::MethodCompiler
       <<-END
         function rb_rescue(b_proc, data1, r_proc, data2) {
           return rb_rescue2(b_proc, data1, r_proc, data2, rb_eStandardError, 0);
+        }
+      END
+    end
+    
+    # modified to use JS "arguments" object instead of va_list
+    def rb_rescue2
+      add_function :rb_obj_is_kind_of
+      <<-END
+        function rb_rescue2(b_proc, data1, r_proc, data2) {
+          var result;
+          var state = 0;
+          var e_info = ruby_errinfo;
+          var handle = Qfalse;
+          PUSH_TAG(PROT_NONE);
+          try { // was EXEC_TAG
+            result = b_proc(data1);
+          } catch (x) {
+            if (typeof(state = x) != 'number') { throw(state); }
+            switch (state) {
+              case TAG_RETRY:
+                if (!handle) { break; }
+                handle = Qfalse;
+                state = 0;
+                ruby_errinfo = Qnil;
+              case TAG_RAISE:
+                if (handle) { break; }
+                handle = Qfalse;
+                for (var i = 4, l = arguments.length; i < l; ++i) {
+                  if (rb_obj_is_kind_of(ruby_errinfo, arguments[i])) {
+                    handle = Qtrue;
+                    break;
+                  }
+                }
+                if (handle) {
+                  state = 0;
+                  if (r_proc) {
+                    result = r_proc(data2, ruby_errinfo);
+                  } else {
+                    result = Qnil;
+                  }
+                  ruby_errinfo = e_info;
+                }
+            }
+          }
+          POP_TAG();
+          if (state) { JUMP_TAG(state); }
+          return result;
         }
       END
     end
@@ -6923,7 +7228,7 @@ class Red::MethodCompiler
     
     # verbatim
     def rb_yield
-      add_function :rb_yield0
+      add_function :rb_yield_0
       <<-END
         function rb_yield(val) {
           return rb_yield_0(val, 0, 0, 0, Qfalse);
@@ -6932,7 +7237,7 @@ class Red::MethodCompiler
     end
     
     # CHECK
-    def rb_yield0
+    def rb_yield_0
       add_function :rb_need_block, :new_dvar, :rb_raise, :svalue_to_mrhs, :massign, :assign,
                    :rb_ary_new3, :svalue_to_avalue, :avalue_to_svalue, :rb_block_proc,
                    :rb_eval, :scope_dup, :proc_jump_error
@@ -7184,13 +7489,13 @@ class Red::MethodCompiler
       <<-END
         function search_method(klass, id, origin) {
           var body;
-          if (!klass) { return [0,origin]; } // returning array
-          while (!(body = klass.m_tbl[id])) { // was st_lookup
+          if (!klass) { return [0, origin]; } // returning array
+          while (!(body = st_lookup(klass.m_tbl, id))[0]) {
             klass = klass.superclass;
-            if (!klass) { return [0,origin]; }
+            if (!klass) { return [0, origin]; }
           }
           origin = klass;
-          return [body, origin]; // returning array
+          return [body[1], origin]; // returning array
         }
       END
     end
@@ -7202,6 +7507,21 @@ class Red::MethodCompiler
       <<-END
         function set_backtrace(info, bt) {
           rb_funcall(info, rb_intern("set_backtrace"), 1, bt);
+        }
+      END
+    end
+    
+    # removed option to eval a string
+    def specific_eval
+      add_function :rb_block_given_p, :rb_raise, :yield_under
+      <<-END
+        function specific_eval(argc, argv, klass, self) {
+          if (rb_block_given_p()) {
+            if (argc > 0) { rb_raise(rb_eArgError, "wrong number of arguments (%d for 0)", argc); }
+            return yield_under(klass, self, Qundef);
+          } else {
+            rb_raise(rb_eArgError, "block not supplied");
+          }
         }
       END
     end
@@ -7236,14 +7556,63 @@ class Red::MethodCompiler
       END
     end
     
+    # changed rb_ary_new2 to rb_ary_new
+    def svalue_to_mrhs
+      add_function :rb_ary_new, :rb_check_array_type, :rb_ary_new3
+      <<-END
+        function svalue_to_mrhs(v, lhs) {
+          if (v == Qundef) { return rb_ary_new(); }
+          var tmp = rb_check_array_type(v);
+          if (NIL_P(tmp)) { return rb_ary_new3(1, v); }
+          /* no lhs means splat lhs only */
+          if (!lhs) { return rb_ary_new3(1, v); }
+          return tmp;
+        }
+      END
+    end
+    
     # modified to use jsprintf instead of va_args
     def warn_printf
-      add_function :jsprintf, :rb_write_error
+      add_function :rb_write_error
       <<-END
         function warn_printf(fmt) {
           for (var i = 1, ary = []; typeof(arguments[i]) != 'undefined'; ++i) { ary.push(arguments[i]); }
           var buf = jsprintf(fmt,ary);
           rb_write_error(buf);
+        }
+      END
+    end
+    
+    # verbatim
+    def yield_args_under_i
+      add_function :rb_yield_0
+      <<-END
+        function yield_args_under_i(info) {
+          return rb_yield_0(info[0], info[1], ruby_class, YIELD_PUBLIC_DEF, Qtrue);
+        }
+      END
+    end
+    
+    # verbatim
+    def yield_under
+      add_function :exec_under, :yield_under_i, :yield_args_under_i
+      <<-END
+        function yield_under(under, self, args) {
+          if (args == Qundef) {
+            return exec_under(yield_under_i, under, 0, self);
+          } else {
+            return exec_under(yield_args_under_i, under, 0, [args, self]);
+          }
+        }
+      END
+    end
+    
+    # verbatim
+    def yield_under_i
+      add_function :rb_yield_0
+      <<-END
+        function yield_under_i(self) {
+          return rb_yield_0(self, self, ruby_class, YIELD_PUBLIC_DEF, Qfalse);
         }
       END
     end
@@ -7488,7 +7857,7 @@ class Red::MethodCompiler
     
     # CHECK
     def rb_intern
-      add_function :is_special_global_name, :rb_id_attrset, :is_attrset_id, :is_identchar
+      add_function :rb_id_attrset, :is_attrset_id, :is_identchar#, :is_special_global_name
       <<-END
         function rb_intern(name) {
           var id;
@@ -7603,64 +7972,38 @@ class Red::MethodCompiler
     end
   end
   
-  module St
-    # modified hash copying
-    def st_copy
-      <<-END
-        function st_copy(src) {
-          var tbl = {};
-          for (var x in src) { tbl[x] = src[x]; }
-          return tbl;
-        }
-      END
-    end
-  end
-  
   module Variable
-    # slightly modified logic flow, replaced st calls
-    def classname
-      add_functions :find_class_path, :rb_str_new, :rb_id2name
+    # verbatim
+    def generic_ivar_defined
       <<-END
-        function classname(klass) {
-          var path = Qnil;
-          if (!klass) { klass = rb_cObject; }
-          if (!klass.iv_tbl) { return find_class_path(klass); } // shifted from end of function
-          
-          if (!(path = klass.iv_tbl[classpath])) {
-            var classid = rb_intern('__classid__');
-            if (!(path = klass.iv_tbl[classid])) {
-              return find_class_path(klass);
+        function generic_ivar_defined(obj, id) {
+          var data;
+          var val;
+          if (!generic_iv_tbl) { return Qfalse; }
+          if (!(data = generic_iv_tbl[obj])) { return Qfalse; }
+        //if (!st_lookup(generic_iv_tbl, obj, &data)) { return Qfalse; }
+          var tbl = data;
+          if ((val = tbl[id])) { return Qtrue; }
+        //if (st_lookup(tbl, id, &val)) { return Qtrue; }
+          return Qfalse;
+        }
+      END
+    end
+    
+    # removed warning
+    def generic_ivar_get
+      add_function :st_lookup
+      <<-END
+        function generic_ivar_get(obj, id, warn) {
+          var tbl;
+          var val;
+          if (generic_iv_tbl) {
+            if ((tbl = generic_iv_tbl[obj])) { // was st_lookup
+              if ((val = tbl[id])) { return val; }
             }
-            
-            path = rb_str_new(rb_id2name(SYM2ID(path))); // changed rb_str_new2 to rb_str_new
-            klass.iv_tbl[classpath] = path; // was st_insert
-            delete klass.iv_tbl[classid]; // was st_delete
           }
-          return path;
-        }
-      END
-    end
-    
-    # verbatim
-    def const_missing
-      add_function :rb_funcall
-      add_method :const_missing
-      <<-END
-       function const_missing(klass, id) {
-          return rb_funcall(klass, rb_intern("const_missing"), 1, ID2SYM(id));
-        }
-      END
-    end
-    
-    # verbatim
-    def cvar_cbase
-      add_functions :rb_raise
-      <<-END
-        function cvar_cbase() {
-          var cref = ruby_cref;
-          while (cref && cref.nd_next && (NIL_P(cref.nd_clss) || FL_TEST(cref.nd_clss, FL_SINGLETON))) { cref = cref.nd_next; } // removed bug warning
-          if (NIL_P(cref.nd_clss)) { rb_raise(rb_eTypeError, "no class variables available"); }
-          return cref.nd_clss;
+          // removed warning
+          return Qnil;
         }
       END
     end
@@ -7686,40 +8029,6 @@ class Red::MethodCompiler
       END
     end
     
-    # verbatim
-    def ivar_get
-      add_functions :rb_special_const_p, :generic_ivar_get
-      <<-END
-        function ivar_get(obj, id, warn) {
-          var val;
-          switch (TYPE(obj)) {
-            case T_OBJECT:
-            case T_CLASS:
-            case T_MODULE:
-              if (obj.iv_tbl && (val = obj.iv_tbl[id])) { return val; }
-              break;
-            default:
-              if (FL_TEST(obj, FL_EXIVAR) || rb_special_const_p(obj)) { return generic_ivar_get(obj, id, warn); }
-          }
-          // removed warning
-          return Qnil;
-        }
-      END
-    end
-    
-    # removed "autoload" call
-    def mod_av_set
-      add_functions :rb_raise, :rb_error_frozen
-      <<-END
-        function mod_av_set(klass, id, val, isconst) {
-          if (!OBJ_TAINTED(klass) && rb_safe_level() >= 4) { rb_raise(rb_eSecurityError, "Insecure: can't set %s", isconst ? "constant" : "class variable"); }
-          if (OBJ_FROZEN(klass)) { rb_error_frozen((BUILTIN_TYPE(klass) == T_MODULE) ? "module" : "class"); }
-          if (!klass.iv_tbl) { klass.iv_tbl = {}; } // removed "autoload" call
-          klass.iv_tbl[id] = val; // was st_insert
-        }
-      END
-    end
-    
     # unsupported
     def rb_alias_variable
       add_functions :rb_raise
@@ -7731,212 +8040,24 @@ class Red::MethodCompiler
     end
     
     # verbatim
-    def rb_attr_get
-      add_functions :ivar_get
+    def rb_copy_generic_ivar
+      add_function :st_lookup, :st_free_table, :st_insert, :st_copy, :st_add_direct
       <<-END
-        function rb_attr_get(obj, id) {
-          return ivar_get(obj, id, Qfalse);
-        }
-      END
-    end
-    
-    # verbatim
-    def rb_class_name
-      add_functions :rb_class_path, :rb_class_real
-      <<-END
-        function rb_class_name(klass) {
-          return rb_class_path(rb_class_real(klass));
-        }
-      END
-    end
-    
-    # changed string construction
-    def rb_class_path
-      add_functions :classname, :rb_obj_class, :rb_class2name, :rb_str_new, :rb_ivar_set
-      <<-END
-        function rb_class_path(klass) {
-          var path = classname(klass);
-          if (!NIL_P(path)) { return path; }
-          if (klass.iv_tbl && (path = klass.iv_tbl[tmp_classpath])) { // was st_lookup
-            return path;
-          } else {
-            var s = "Class";
-            if (TYPE(klass) == T_MODULE) { s = (rb_obj_class(klass) == rb_cModule) ? "Module" : rb_class2name(klass.basic.klass); }
-            path = rb_str_new(0); // got rid of "len"
-            path.ptr = "#<" + s + ":0x" + klass.toString(16) + ">"; // changed from snprintf
-            rb_ivar_set(klass, tmp_classpath, path);
-            return path;
-          }
-        }
-      END
-    end
-    
-    # verbatim
-    def rb_class2name
-      add_functions :rb_class_name
-      <<-END
-        function rb_class2name(klass) {
-          return rb_class_name(klass).ptr;
-        }
-      END
-    end
-    
-    # verbatim
-    def rb_const_defined
-      add_functions :rb_const_defined_0
-      <<-END
-        function rb_const_defined(klass, id) {
-          return rb_const_defined_0(klass, id, Qfalse, Qtrue);
-        }
-      END
-    end
-    
-    # removed "autoload" call, unwound "goto" architecture
-    def rb_const_defined_0
-      <<-END
-        function rb_const_defined_0(klass, id, exclude, recurse) {
-          var value;
-          var tmp = klass;
-          var mod_retry = 0;
-          do { // added to handle "goto"
-            while (tmp) {
-              if (tmp.iv_tbl && (value = tmp.iv_tbl[id])) { return Qtrue; } // removed "autoload" call
-              if (!recurse && (klass != rb_cObject)) { break; }
-              tmp = tmp.superclass;
+        function rb_copy_generic_ivar(clone, obj) {
+          var data;
+          if (!generic_iv_tbl) { return; }
+          if (!FL_TEST(obj, FL_EXIVAR)) { return; }
+        //if (st_lookup(generic_iv_tbl, obj, &data)) {
+          if ((data = generic_iv_tbl[obj])) {
+            var tbl = data;
+          //if (st_lookup(generic_iv_tbl, clone, &data)) {
+            if ((data = generic_iv_tbl(clone))) {
+              st_free_table(data);
+              st_insert(generic_iv_tbl, clone, st_copy(tbl));
+            } else {
+              st_add_direct(generic_iv_tbl, clone, st_copy(tbl));
             }
-          } while (!exclude && !mod_retry && (BUILTIN_TYPE(klass) == T_MODULE) && (tmp = rb_cObject) && (mod_retry = 1)); // added to handle "goto"
-          return Qfalse;
-        }
-      END
-    end
-    
-    # verbatim
-    def rb_const_defined_at
-      add_functions :rb_const_defined_0
-      <<-END
-        function rb_const_defined_at(klass, id) {
-          return rb_const_defined_0(klass, id, Qtrue, Qfalse);
-        }
-      END
-    end
-    
-    # verbatim
-    def rb_const_get
-      add_functions :rb_const_get_0
-      <<-END
-        function rb_const_get(klass, id) {
-          return rb_const_get_0(klass, id, Qfalse, Qtrue);
-        }
-      END
-    end
-    
-    # removed "autoload" call, unwound "goto" architecture
-    def rb_const_get_0
-      add_functions :const_missing
-      <<-END
-        function rb_const_get_0(klass, id, exclude, recurse) {
-          var value;
-          var tmp = klass;
-          var mod_retry = 0;
-          do {
-            while (tmp) {
-              while (tmp.iv_tbl && (value = tmp.iv_tbl[id])) { return value; } // removed "autoload" call
-              if (!recurse && (klass != rb_cObject)) { break; }
-              tmp = tmp.superclass;
-            }
-          } while (!exclude && !mod_retry && (BUILTIN_TYPE(klass) == T_MODULE) && (tmp = rb_cObject) && (mod_retry = 1));
-          return const_missing(klass, id);
-        }
-      END
-    end
-    
-    # verbatim
-    def rb_const_get_at
-      add_functions :rb_const_get_0
-      <<-END
-        function rb_const_get_at(klass, id) {
-          return rb_const_get_0(klass, id, Qtrue, Qfalse);
-        }
-      END
-    end
-    
-    # verbatim
-    def rb_const_get_from
-      add_functions :rb_const_get_0
-      <<-END
-        function rb_const_get_from(klass, id) {
-          return rb_const_get_0(klass, id, Qtrue, Qtrue);
-        }
-      END
-    end
-    
-    # verbatim
-    def rb_const_set
-      add_functions :rb_raise, :rb_id2name, :mod_av_set
-      <<-END
-        function rb_const_set(klass, id, val) {
-          if (NIL_P(klass)) { rb_raise(rb_eTypeError, "no class/module to define constant %s", rb_id2name(id)); }
-          mod_av_set(klass, id, val, Qtrue);
-        }
-      END
-    end
-    
-    # added undefined check
-    def rb_cvar_get
-      add_functions :rb_name_error, :rb_id2name, :rb_class2name
-      <<-END
-        function rb_cvar_get(klass, id) {
-          var value;
-          var tmp = klass;
-          while (tmp) {
-            if (tmp.iv_tbl && (value = tmp.iv_tbl[id]) && (value !== undefined)) { return value; } // was st_lookup, added undefined check
-            tmp = tmp.superclass;
           }
-          rb_name_error(id, "uninitialized class variable %s in %s", rb_id2name(id), rb_class2name(klass));
-          return Qnil; /* not reached */
-        }
-      END
-    end
-    
-    # verbatim
-    def rb_cvar_set
-      add_functions :rb_error_frozen, :rb_raise, :mod_av_set
-      <<-END
-        function rb_cvar_set(klass, id, val) {
-          var tmp = klass;
-          while (tmp) {
-            if (tmp.iv_tbl && tmp.iv_tbl[id]) { // was st_lookup
-              if (OBJ_FROZEN(tmp)) { rb_error_frozen("class/module"); }
-              if (!OBJ_TAINTED(tmp) && rb_safe_level() >= 4) { rb_raise(rb_eSecurityError, "Insecure: can't modify class variable"); }
-              // removed warnings
-              tmp.iv_tbl[id] = val; // was st_insert
-              return;
-            }
-            tmp = tmp.superclass;
-          }
-          mod_av_set(klass, id, val, Qfalse);
-        }
-      END
-    end
-    
-    # verbatim
-    def rb_define_const
-      add_functions :rb_const_set, :rb_secure
-      <<-END
-        function rb_define_const(klass, name, val) {
-          // removed warning
-          if (klass == rb_cObject) { rb_secure(4); }
-          rb_const_set(klass, rb_intern(name), val);
-        }
-      END
-    end
-    
-    # verbatim
-    def rb_define_global_const
-      add_functions :rb_define_const
-      <<-END
-        function rb_define_global_const(name, val) {
-          rb_define_const(rb_cObject, name, val);
         }
       END
     end
@@ -7959,16 +8080,6 @@ class Red::MethodCompiler
       END
     end
     
-    # verbatim
-    def rb_dvar_push
-      add_function :new_dvar
-      <<-END
-        function rb_dvar_push(id, value) {
-          ruby_dyna_vars = new_dvar(id, value, ruby_dyna_vars);
-        }
-      END
-    end
-    
     # simplified to hash lookup
     def rb_gvar_get
       <<-END
@@ -7987,121 +8098,6 @@ class Red::MethodCompiler
         }
       END
     end
-    
-    # verbatim
-    def rb_iv_get
-      add_functions :rb_ivar_get
-      <<-END
-        function rb_iv_get(obj, name) {
-          return rb_ivar_get(obj, rb_intern(name));
-        }
-      END
-    end
-    
-    # verbatim
-    def rb_iv_set
-      add_functions :rb_ivar_set
-      <<-END
-        function rb_iv_set(obj, name, val) {
-          return rb_ivar_set(obj, rb_intern(name), val);
-        }
-      END
-    end
-    
-    # verbatim
-    def rb_ivar_get
-      add_functions :ivar_get
-      <<-END
-        function rb_ivar_get(obj, id) {
-          return ivar_get(obj, id, Qtrue);
-        }
-      END
-    end
-    
-    # verbatim
-    def rb_ivar_set
-      add_functions :rb_raise, :rb_error_frozen, :generic_ivar_set
-      <<-END
-        function rb_ivar_set(obj, id, val) {
-          if (!OBJ_TAINTED(obj) && rb_safe_level() >= 4) { rb_raise(rb_eSecurityError, "Insecure: can't modify instance variable"); }
-          if (OBJ_FROZEN(obj)) { rb_error_frozen("object"); }
-          switch (TYPE(obj)) {
-            case T_OBJECT:
-            case T_CLASS:
-            case T_MODULE:
-              if (!obj.iv_tbl) { obj.iv_tbl = {}; } // was st_init_numtable
-              obj.iv_tbl[id] = val; // was st_insert
-              break;
-            default:
-              generic_ivar_set(obj, id, val);
-              break;
-          }
-          return val;
-        }
-      END
-    end
-    
-    # verbatim
-    def rb_mod_const_missing
-      add_function :uninitialized, :rb_to_id
-      <<-END
-        function rb_mod_const_missing(klass, name) {
-          ruby_frame = ruby_frame.prev; /* pop frame for "const_missing" */
-          uninitialized_constant(klass, rb_to_id(name));
-          return Qnil; /* not reached */
-        }
-      END
-    end
-    
-    # verbatim
-    def rb_name_class
-      add_functions :rb_iv_set
-      <<-END
-        function rb_name_class(klass, id) {
-          rb_iv_set(klass, '__classid__', ID2SYM(id));
-        }
-      END
-    end
-    
-    # verbatim
-    def rb_obj_classname
-      add_functions :rb_class2name
-      <<-END
-        function rb_obj_classname(obj) {
-          return rb_class2name(CLASS_OF(obj));
-        }
-      END
-    end
-    
-    # changed string handling
-    def rb_set_class_path
-      add_functions :rb_str_new, :rb_class_path, :rb_ivar_set
-      <<-END
-        function rb_set_class_path(klass, under, name) {
-          if (under == rb_cObject) {
-            var str = rb_str_new(name);
-          } else {
-            var base_name = rb_class_path(under).ptr;
-            var str = rb_str_new(base_name + "::" + name);
-          }
-          rb_ivar_set(klass, classpath, str);
-        }
-      END
-    end
-    
-    # verbatim
-    def uninitialized_constant
-      add_function :rb_name_error, :rb_class2name, :rb_id2name
-      <<-END
-        function uninitialized_constant(klass, id) {
-          if (klass && (klass != rb_cObject)) {
-            rb_name_error(id, "uninitialized constant %s::%s", rb_class2name(klass), rb_id2name(id));
-          } else {
-            rb_name_error(id, "uninitialized constant %s", rb_id2name(id));
-          }
-        }
-      END
-    end
   end
   
   include Boot
@@ -8109,6 +8105,5 @@ class Red::MethodCompiler
   include Eval
   include Node
   include Parse
-  include St
   include Variable
 end

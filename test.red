@@ -26,4 +26,8 @@
 #end
 #puts "six:   #{a}"
 
-
+puts({:a => 1, :b => {:a => 1.5}}.inspect)
+puts :a.hash
+puts :a.hash
+puts :b.hash
+puts :c.hash

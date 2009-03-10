@@ -35,6 +35,22 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def range_hash
+    add_function :rb_hash, :rb_ivar_get
+    <<-END
+      function range_hash(range) {
+        var hash = EXCL(range);
+        var v = rb_hash(rb_ivar_get(range, id_beg));
+        hash ^= v << 1;
+        v = rb_hash(rb_ivar_get(range, id_end));
+        hash ^= v << 9;
+        hash ^= EXCL(range) << 24;
+        return LONG2FIX(hash);
+      }
+    END
+  end
+  
   # CHECK
   def range_init
     add_function :rb_rescue, :range_failed, :rb_ivar_set

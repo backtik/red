@@ -333,6 +333,12 @@ module Red
         :nd_tag   => :u1,
         :nd_tval  => :u2,
       }
+      ST_FLAGS = {
+        :ST_CONTINUE => 0x05,
+        :ST_STOP     => 0x06,
+        :ST_DELETE   => 0x07,
+        :ST_CHECK    => 0x08
+      }
       TRUTH = {
         :Qfalse => 0,
         :Qtrue  => 2,
@@ -340,6 +346,7 @@ module Red
         :Qundef => 6
       }
       MISC = {
+        :BIGRAD             => 1 << 64, # assuming BITSPERDIG is 8 * 8
         :ID_ALLOCATOR       => 1,
         :FIXNUM_FLAG        => 0x01,
         :SYMBOL_FLAG        => 0x0e,
@@ -356,6 +363,7 @@ module Red
         :DVAR_DONT_RECYCLE  => 1 << (11 + 2),
         :FRAME_DMETH        => 1,
         :HASH_PROC_DEFAULT  => 1 << (11 + 2),
+        :MIN_SIZE           => 8,
         :NODE_LSHIFT        => 11 + 8,
         :NODE_LMASK         => (1 << (4 * 8 - 19)) - 1,
         :ruby_cbase         => "ruby_cref.u1",
@@ -379,6 +387,7 @@ module Red
         CSTAT_FLAGS,
         BLOCK_FLAGS,
         NODE_SLOTS,
+        ST_FLAGS,
         TRUTH,
         MISC
       ].inject({}) {|x,result| result.merge(x) }
@@ -509,7 +518,10 @@ module Red
         :SETUP_ARGS => "(function SETUP_ARGS_MACRO() { var n = (%s); if (!n) { argc = 0; argv = 0; } else if (((n.flags >> FL_USHIFT) & 0xff) == NODE_ARRAY) { argc = n.nd_alen; if (argc > 0) { argv = []; for (var i = 0; i < argc; i++) { argv[i] = rb_eval(self,n.nd_head); n = n.nd_next; } } else { argc = 0; argv = 0; } } else { var args = rb_eval(self,n); if (TYPE(args) != T_ARRAY) { args = rb_ary_to_ary(args); } argc = args.ptr.length; argv = []; MEMCPY(argv, args.ptr, argc); } })()"
       }
       MISC = {
+        :ADD_DIRECT      => "do { var entry; if (((%1$s).num_entries / (%1$s).num_bins) > 5) { rehash(%1$s); (%5$s) = (%4$s) %% (%1$s).num_bins; } entry = {}; entry.hash = (%4$s); entry.key = (%2$s); entry.record = (%3$s); entry.next = (%1$s).bins[(%5$s)]; (%1$s).bins[(%5$s)] = entry; (%1$s).num_entries++; } while (0)",
+        :BDIGITS         => "(%s).digits",
         :BUILTIN_TYPE    => "((%s).basic.flags & T_MASK)",
+        :do_hash         => "((%2$s).type.hash(%1$s))",
         :EXPR1           => "((((%s) >> 3) ^ (%s)) & CACHE_MASK)",
         :FIX2LONG        => "((%s) >> 1)",
         :FIX2ULONG       => "((%s) >> 1)",
@@ -539,6 +551,8 @@ module Red
         :OBJ_TAINT       => "(FL_ABLE(%1$s) ? (%1$s).basic.flags |= FL_TAINT : 0)",
         :OBJ_TAINTED     => "(FL_ABLE(%1$s) ? (%1$s).basic.flags & FL_TAINT : 0)",
         :OBJSETUP        => "((%s).basic = { klass: (%s), flags: (%s) })",
+        :rb_int_new      => "rb_int2inum(%s)",
+        :return_value    => "do { if ((prot_tag.retval = (%s)) == Qundef) { prot_tag.retval = Qnil; } } while (0)",
         :RETURN          => "throw({ goto_flag: finish_flag, value: (%s) })",
         :RTEST           => "(((%1$s) != Qnil) && ((%1$s) !== Qfalse))",
         :SPECIAL_CONST_P => "(((%1$s) & IMMEDIATE_MASK) || !(((%1$s) != Qnil) && ((%1$s) !== Qfalse)))",
@@ -949,7 +963,9 @@ module Red
     def initialize(value, options)
       case value.class.to_s
       when 'Fixnum'
-        self << "r(%s,%s,%d)" % [$line, 0xfd, value]
+        self << "r(%s,%s,%d)" % [$line, 0xfc, value]
+      when 'Float'
+        self << "r(%s,%s,%.15f)" % [$line, 0xfd, value]
       when 'Regexp'
         self << "r(%s,%s,%p)" % [$line, 0xfe, value]
       when 'Symbol'
@@ -1196,7 +1212,11 @@ module Red
       gsub(/\n/," ").
       gsub(/\s+/," ")
     Preprocessor.new.process!(condensed_ruby_source)
-    return condensed_ruby_source + red_js
+    source = condensed_ruby_source + red_js
+  # $mc.compiled_functions.each do |name,stub|
+  #   source.gsub!(/\b#{name}\b/,stub)
+  # end
+    return source
   end
   
   RUBY_SOURCE_FILES = %w[

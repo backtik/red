@@ -31,17 +31,7 @@ class Red::MethodCompiler
     END
   end
   
-  # CHECK
-  def rb_int_new
-    add_function :rb_int2inum
-    <<-END
-      function rb_int_new(v) {
-        return rb_int2inum(v);
-      }
-    END
-  end
-  
-  # CHECK
+  # verbatim
   def rb_int2inum
     add_function :rb_int2big
     <<-END

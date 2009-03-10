@@ -1,4 +1,47 @@
 class Red::MethodCompiler
+  # verbatim
+  def memcmp
+    <<-END
+      function memcmp(s1, s2, len) {
+        var tmp;
+        for (var i = 0; i < len; ++i) {
+          if (tmp = s1.charCodeAt(i) - s2.charCodeAt(i)) { return tmp; }
+        }
+        return 0;
+      }
+    END
+  end
+  
+  # removed ELTS_SHARED stuff
+  def rb_check_string_type
+    add_function :rb_check_convert_type
+    add_method :to_str
+    <<-END
+      function rb_check_string_type(str) {
+        str = rb_check_convert_type(str, T_STRING, "String", "to_str");
+        return str;
+      }
+    END
+  end
+  
+  # simplified to use simple JS parseFloat
+  def rb_cstr_to_dbl
+    add_function :isnan, :rb_invalid_str
+    <<-END
+      function rb_cstr_to_dbl(p, badcheck) {
+        if (!p) { return 0; }
+        try {
+          p = p.replace(/_/g,'');
+          var f = parseFloat(p);
+          if (isnan(f)) { return 0; }
+          return f;
+        } catch (e) {
+          rb_invalid_str(p, "Float()");
+        }
+      }
+    END
+  end
+  
   # CHECK
   def rb_obj_as_string
     add_function :rb_funcall, :rb_any_to_s
@@ -16,7 +59,6 @@ class Red::MethodCompiler
   
   # CHECK
   def rb_str_append
-    add_function :rb_str_modify
     <<-END
       function rb_str_append(str, str2) {
       //rb_str_modify(str);
@@ -29,12 +71,60 @@ class Red::MethodCompiler
   
   # CHECK
   def rb_str_cat
-    add_function :rb_str_modify
     <<-END
       function rb_str_cat(str, ptr) {
       //rb_str_modify(str);
         str.ptr = str.ptr + ptr;
         return str;
+      }
+    END
+  end
+  
+  # replaced rb_memcmp with memcmp
+  def rb_str_cmp
+    add_function :memcmp
+    <<-END
+      function rb_str_cmp(str1, str2) {
+        var retval;
+        var p1 = str1.ptr;
+        var p2 = str2.ptr;
+        var l1 = p1.length;
+        var l2 = p2.length;
+        var len = (l1 > l2) ? l2 : l1;
+        var retval = memcmp(p1, p2, len);
+        if (retval == 0) {
+          if (l1 == l2) { return 0; }
+          if (l1 > l2) { return 1; }
+          return -1;
+        }
+        if (retval > 0) { return 1; }
+        return -1;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_str_cmp_m
+    add_function :rb_respond_to, :rb_intern, :rb_funcall, :rb_str_cmp, :rb_int2inum
+    add_method :to_str, :'<=>', :-
+    <<-END
+      function rb_str_cmp_m(str1, str2) {
+        var result;
+        if (TYPE(str2) != T_STRING) {
+          if (!rb_respond_to(str2, rb_intern("to_str"))) {
+            return Qnil;
+          } else if (!rb_respond_to(str2, rb_intern("<=>"))) {
+            return Qnil;
+          } else {
+            var tmp = rb_funcall(str2, rb_intern("<=>"), 1, str1);
+            if (NIL_P(tmp)) { return Qnil; }
+            if (!FIXNUM_P(tmp)) { return rb_funcall(LONG2FIX(0), '-', 1, tmp); }
+            result = -FIX2LONG(tmp);
+          }
+        } else {
+          result = rb_str_cmp(str1, str2);
+        }
+        return LONG2NUM(result);
       }
     END
   end
@@ -64,6 +154,47 @@ class Red::MethodCompiler
         }
         if ((str1.ptr.length == str2.ptr.length) && (rb_str_cmp(str1, str2) === 0)) { return Qtrue; }
         return Qfalse;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_str_format_m
+    add_function :rb_check_array_type, :rb_str_format
+    <<-END
+      function rb_str_format_m(str, arg) {
+        var tmp = rb_check_array_type(arg);
+        if (!NIL_P(tmp)) { return rb_str_format(tmp.ptr.length, tmp.ptr, str); }
+        return rb_str_format(1, arg, str);
+      }
+    END
+  end
+  
+  # fixed "int" length problem with "& 0x7FFFFFFF"
+  def rb_str_hash
+    <<-END
+      function rb_str_hash(str) {
+        var tmp;
+        var p = str.ptr;
+        var i = 0;
+        var len = p.length;
+        var key = 0;
+        while (len--) {
+          key = ((key * 65599) + p.charCodeAt(i)) & 0x7FFFFFFF;
+          i++;
+        }
+        key = (key + (key >> 5)) & 0x7FFFFFFF;
+        return key;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_str_hash_m
+    add_function :rb_str_hash
+    <<-END
+      function rb_str_hash_m(str) {
+        return INT2FIX(rb_str_hash(str));
       }
     END
   end
@@ -116,7 +247,6 @@ class Red::MethodCompiler
   
   # CHECK
   def rb_str_replace
-    add_function :rb_str_modify
     <<-END
       function rb_str_replace(str, str2) {
         if (str === str2) { return str; }
@@ -124,6 +254,28 @@ class Red::MethodCompiler
       //rb_str_modify(str);
         str.ptr = str2.ptr;
         return str;
+      }
+    END
+  end
+  
+  # removed char allocation and checking
+  def rb_str_to_dbl
+    add_function :rb_cstr_to_dbl
+    <<-END
+      function rb_str_to_dbl(str, badcheck) {
+        var s = str.ptr;
+        var len = str.ptr.length;
+        return rb_cstr_to_dbl(s, badcheck);
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_str_to_f
+    add_function :rb_float_new, :rb_str_to_dbl
+    <<-END
+      function rb_str_to_f(str) {
+        return rb_float_new(rb_str_to_dbl(str, Qfalse));
       }
     END
   end

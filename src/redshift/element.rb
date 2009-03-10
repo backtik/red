@@ -164,8 +164,8 @@ class Red::MethodCompiler
         var element = elem.ptr;
         var tag = element.tagName.toUpperCase();
         var id = (element.id) ? (' id="' + element.id + '"') : '';
-        var class = (element.className) ? (' class="' + element.className + '"') : '';
-        var str = rb_str_new("#<Element: " + tag + id + class + ">");
+        var klass = (element.className) ? (' class="' + element.className + '"') : '';
+        var str = rb_str_new("#<Element: " + tag + id + klass + ">");
         if (OBJ_TAINTED(elem)) { OBJ_TAINT(elem); }
         return str;
       }

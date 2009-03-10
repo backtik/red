@@ -195,6 +195,26 @@ class Red::MethodCompiler
     END
   end
   
+  # eliminated "len" handling
+  def proc_to_s
+    add_function :rb_obj_classname
+    <<-END
+      function proc_to_s(self) {
+        var node;
+        var cname = rb_obj_classname(self);
+        var str = rb_str_new();
+        var data = self.data;
+        if ((node = data.frame.node) || (node = data.body)) {
+          p = jsprintf("#<%s:0x%x@%s:%d>", [cname, data.body.rvalue, node.ndfile, nd_line(node)]);
+        } else {
+          p = jsprintf("#<%s:0x%x>", [cname, data.body.rvalue]);
+        }
+        if (OBJ_TAINTED(self)) { OBJ_TAINT(str); }
+        return str;
+      }
+    END
+  end
+  
   # verbatim
   def proc_to_self
     <<-END
@@ -220,6 +240,20 @@ class Red::MethodCompiler
     <<-END
       function rb_proc_call(proc, args) {
         return proc_invoke(proc, args, Qundef, 0);
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_proc_new
+    add_function :rb_iterate, :mproc
+    <<-END
+      function rb_proc_new(func, val) {/* VALUE yieldarg[, VALUE procarg] */
+        var proc = rb_iterate(mproc, 0, func, val);
+        var data = proc.data;
+        data.body.nd_state = YIELD_FUNC_LAMBDA;
+        data.flags |= BLOCK_LAMBDA;
+        return proc;
       }
     END
   end
