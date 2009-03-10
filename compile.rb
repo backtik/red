@@ -38,6 +38,9 @@ require 'src/redshift/request'
 require 'src/redshift/response'
 require 'src/redshift/styles'
 require 'src/redshift/user_event'
+require 'src/ribbons/view'
+require 'src/ribbons/controller'
+
 class Red::MethodCompiler
   attr_reader :functions
   attr_accessor :compiled_functions
@@ -404,6 +407,13 @@ class Red::MethodCompiler
       $mc.add_function :uevent_add_listener
       <<-END
         rb_define_method(rb_mUserEvent, "add_listener", uevent_add_listener, 1);
+      END
+    end
+    
+    def add_binding
+      $mc.add_function :view_add_binding_to_controller
+      <<-END
+        rb_define_method(rb_cView, "add_binding", view_add_binding_to_controller, 3);
       END
     end
     
@@ -1687,8 +1697,11 @@ class Red::MethodCompiler
                        :nometh_err_initialize, :syserr_initialize,
                        :exc_initialize, :name_err_initialize,
                        :exit_initialize, :rb_ary_initialize, :rb_struct_initialize,
-                       :enumerator_initialize, :elem_initialize, :req_initialize
+                       :enumerator_initialize, :elem_initialize, :req_initialize,
+                       :view_initialize, :controller_initialize
       <<-END
+        rb_define_method(rb_cController, "initialize", controller_initialize, 0);
+        rb_define_method(rb_cView, "initialize", view_initialize, 1);
         rb_define_method(rb_cRequest, "initialize", req_initialize, -1);
         rb_define_method(rb_cElement, "initialize", elem_initialize, 1);
         rb_define_method(rb_cEnumerator, "initialize", enumerator_initialize, -1);
@@ -3724,6 +3737,16 @@ class Red::MethodCompiler
       END
     end
     
+    #
+    def Init_Controller
+      add_function :rb_define_class
+      <<-END
+        function Init_Controller() {
+          rb_cController = rb_define_class("Controller", rb_cObject);
+        }
+      END
+    end
+    
     # verbatim
     def Init_Data
       add_function :rb_define_class, :rb_undef_alloc_func
@@ -4492,6 +4515,29 @@ class Red::MethodCompiler
       END
     end
     
+    #
+    def Init_View
+      add_function :rb_define_class
+      <<-END
+        function Init_View() {
+          rb_cView = rb_define_class("View", rb_cObject);
+        }
+      END
+    end
+    
+    # need to move method defs to class << Ruby
+    def Init_Window
+      add_function :rb_define_module, :win_document, :win_window
+      <<-END
+        function Init_Window() {
+          rb_mWindow = rb_define_module("Window");
+          
+          rb_define_module_function(rb_mWindow, "document", win_document, 0);
+          rb_define_module_function(rb_mWindow, "window", win_window, 0);
+        }
+      END
+    end
+    
     # expanded Init_Object into multiple inits, added Redshift inits
     def rb_call_inits
       add_functions :Init_sym, :Init_ids, :Init_var_tables, :Init_boot,
@@ -4507,7 +4553,8 @@ class Red::MethodCompiler
                     :Init_Document, :Init_Element, :Init_Method,
                     :Init_UnboundMethod, :Init_MatchData, :Init_Event,
                     :Init_Browser, :Init_CodeEvent, :Init_Request,
-                    :Init_Response, :Init_accessors, :Init_st
+                    :Init_Response, :Init_accessors, :Init_st,
+                    :Init_View, :Init_Controller
       <<-END
         function rb_call_inits() {
           Init_st();
@@ -4557,6 +4604,9 @@ class Red::MethodCompiler
           Init_Request();
           Init_Response();
           Init_accessors();
+          
+          Init_View();
+          Init_Controller();
         }
       END
     end
@@ -8098,6 +8148,122 @@ class Red::MethodCompiler
         }
       END
     end
+    
+    # verbatim
+    def rb_iv_get
+      add_functions :rb_ivar_get
+      <<-END
+        function rb_iv_get(obj, name) {
+          return rb_ivar_get(obj, rb_intern(name));
+        }
+      END
+    end
+    
+    # verbatim
+    def rb_iv_set
+      add_functions :rb_ivar_set
+      <<-END
+        function rb_iv_set(obj, name, val) {
+          return rb_ivar_set(obj, rb_intern(name), val);
+        }
+      END
+    end
+    
+    # verbatim
+    def rb_ivar_get
+      add_functions :ivar_get
+      <<-END
+        function rb_ivar_get(obj, id) {
+          return ivar_get(obj, id, Qtrue);
+        }
+      END
+    end
+    
+    # verbatim
+    def rb_ivar_set
+      add_functions :rb_raise, :rb_error_frozen, :generic_ivar_set
+      <<-END
+        function rb_ivar_set(obj, id, val) {
+          if (!OBJ_TAINTED(obj) && rb_safe_level() >= 4) { rb_raise(rb_eSecurityError, "Insecure: can't modify instance variable"); }
+          if (OBJ_FROZEN(obj)) { rb_error_frozen("object"); }
+          switch (TYPE(obj)) {
+            case T_OBJECT:
+            case T_CLASS:
+            case T_MODULE:
+              if (!obj.iv_tbl) { obj.iv_tbl = {}; } // was st_init_numtable
+              obj.iv_tbl[id] = val; // was st_insert
+              break;
+            default:
+              generic_ivar_set(obj, id, val);
+              break;
+          }
+          return val;
+        }
+      END
+    end
+    
+    # verbatim
+    def rb_mod_const_missing
+      add_function :uninitialized, :rb_to_id
+      <<-END
+        function rb_mod_const_missing(klass, name) {
+          ruby_frame = ruby_frame.prev; /* pop frame for "const_missing" */
+          uninitialized_constant(klass, rb_to_id(name));
+          return Qnil; /* not reached */
+        }
+      END
+    end
+    
+    # verbatim
+    def rb_name_class
+      add_functions :rb_iv_set
+      <<-END
+        function rb_name_class(klass, id) {
+          rb_iv_set(klass, '__classid__', ID2SYM(id_to_s));
+        }
+      END
+    end
+    
+    # verbatim
+    def rb_obj_classname
+      add_functions :rb_class2name
+      <<-END
+        function rb_obj_classname(obj) {
+          return rb_class2name(CLASS_OF(obj));
+        }
+      END
+    end
+    
+    # changed string handling
+    def rb_set_class_path
+      add_functions :rb_str_new, :rb_class_path, :rb_ivar_set
+      <<-END
+        function rb_set_class_path(klass, under, name) {
+          if (under == rb_cObject) {
+            var str = rb_str_new(name);
+          } else {
+            var base_name = rb_class_path(under).ptr;
+            var str = rb_str_new(base_name + "::" + name);
+          }
+          rb_ivar_set(klass, classpath, str);
+        }
+      END
+    end
+    
+    # verbatim
+    def uninitialized_constant
+      add_function :rb_name_error, :rb_class2name, :rb_id2name
+      <<-END
+        function uninitialized_constant(klass, id) {
+          if (klass && (klass != rb_cObject)) {
+            rb_name_error(id, "uninitialized constant %s::%s", rb_class2name(klass), rb_id2name(id));
+          } else {
+            rb_name_error(id, "uninitialized constant %s", rb_id2name(id));
+          }
+        }
+      END
+    end
+>>>>>>> Stashed changes:compile.rb
   end
   
   include Boot
