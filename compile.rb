@@ -8263,7 +8263,6 @@ class Red::MethodCompiler
         }
       END
     end
->>>>>>> Stashed changes:compile.rb
   end
   
   include Boot
