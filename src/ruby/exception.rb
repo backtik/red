@@ -116,7 +116,6 @@ class Red::MethodCompiler
                  :rb_obj_classname, :rb_f_sprintf
     <<-END
       function name_err_mesg_to_str(obj) {
-        console.log(obj);
         var ptr = obj.data;
         var mesg = ptr[0];
         if (NIL_P(mesg)) {
