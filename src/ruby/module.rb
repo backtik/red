@@ -51,6 +51,20 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def rb_mod_attr
+    add_function :rb_attr, :rb_to_id, :rb_scan_args
+    <<-END
+      function rb_mod_attr(argc, argv, klass) {
+        var tmp = rb_scan_args(argc, argv, "11");
+        var name = tmp[1];
+        var pub = tmp[2];
+        rb_attr(klass, rb_to_id(name), 1, RTEST(pub), Qtrue);
+        return Qnil;
+      }
+    END
+  end
+  
+  # verbatim
   def rb_mod_attr_accessor
     add_function :rb_attr, :rb_to_id
     <<-END

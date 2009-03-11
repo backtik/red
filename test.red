@@ -27,19 +27,15 @@
 #puts "six:   #{a}"
 
 class Mush
-  def yell
-    @foo = {:a => 1}
-    @foo[:b] = @foo
-    puts @foo.inspect
-    puts "\n"
-    puts @foo[:b].inspect
-    puts "\n"
-    puts @foo[:b][:b].inspect
+  attr :foo, true
+  
+  def initialize
+    @foo = 50
   end
 end
 
-Enumerable::Enumerator.new(Mush.new, :yell).each { true }
+Element.new
 
-puts [1,2,3].each {|x| puts x }.length
-
-puts(Class <= Object)
+mush = Mush.new
+mush.foo = 25
+puts mush.foo

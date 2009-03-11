@@ -223,7 +223,7 @@ class Red::MethodCompiler
     end
     
     def <=>
-      $mc.add_functions :rb_mod_cmp, :rb_str_cmp_m, :rb_ary_cmp, :rb_num_cmp,
+      $mc.add_functions :rb_mod_cmp, :rb_str_cmp_m, :rb_ary_cmp, :num_cmp,
                         :fix_cmp, :flo_cmp
       <<-END
       //rb_define_method(rb_cModule, "<=>",  rb_mod_cmp, 1);
@@ -5096,7 +5096,7 @@ class Red::MethodCompiler
           try { // was EXEC_TAG
             e = rb_funcall(ruby_errinfo, rb_intern("message"), 0, 0);
           //StringValue(e);
-            e = name_err_mesg_to_str(e);
+            if (e.data) { e = name_err_mesg_to_str(e); } // this line is a hack
             einfo = e.ptr;
             elen = einfo.length;
           } catch (x) {
@@ -5620,8 +5620,6 @@ class Red::MethodCompiler
       add_function :rb_is_local_id, :rb_is_const_id, :rb_name_error, :rb_id2name, :rb_raise, :rb_intern, :rb_add_method
       <<-END
         function rb_attr(klass, id, read, write, ex) {
-          var name;
-          var attriv;
           var noex;
           if (!ex) {
             noex = NOEX_PUBLIC;
@@ -5634,12 +5632,43 @@ class Red::MethodCompiler
             noex = NOEX_PUBLIC;
           }
           if (!rb_is_local_id(id) && !rb_is_const_id(id)) { rb_name_error(id, "invalid attribute name '%s'", rb_id2name(id)); }
-          name = rb_id2name(id);
+          var name = rb_id2name(id);
           if (!name) { rb_raise(rb_eArgError, "argument needs to be symbol or string"); }
           // removed string buf computation
-          attriv = rb_intern('@' + name);
+          var attriv = rb_intern('@' + name);
           if (read) { rb_add_method(klass, id, NEW_IVAR(attriv), noex); }
           if (write) { rb_add_method(klass, rb_id_attrset(id), NEW_ATTRSET(attriv), noex); }
+        }
+      END
+    end
+    # function rb_foo_set() { rb_iv_set(); rb_kvo_notify_observers(); }
+    # if (write) { rb_define_method(klass, rb_id_attrset(id), rb_foo_set, 1)}
+    def rb_kvc_attr_set
+      <<-END
+        function rb_kvc_attr_set(klass, id, ex) {
+          var noex;
+          if (!ex) {
+            noex = NOEX_PUBLIC;
+          } else if (SCOPE_TEST(SCOPE_PRIVATE)) {
+            noex = NOEX_PRIVATE;
+          } else if (SCOPE_TEST(SCOPE_PROTECTED)) {
+            noex = NOEX_PROTECTED;
+          } else {
+            noex = NOEX_PUBLIC;
+          }
+          if (!rb_is_local_id(id) && !rb_is_const_id(id)) { rb_name_error(id, "invalid attribute name '%s'", rb_id2name(id)); }
+          var name = rb_id2name(id);
+          if (!name) { rb_raise(rb_eArgError, "argument needs to be symbol or string"); }
+          var attriv = rb_intern('@' + name);
+          rb_add_method(klass, id, NEW_IVAR(attriv), noex);
+          function WHATEVZ(obj, value) {
+            rb_iv_set(obj, attriv, value);
+            for (var i = 0, p = obj.bindings[attriv], l = p.length; i < l; ++i) {
+              p[i]();
+            }
+            return value;
+          }
+          rb_define_method(klass, rb_id_attrset(id), WHATEVZ, 1);
         }
       END
     end
@@ -5787,12 +5816,22 @@ class Red::MethodCompiler
           ruby_frame.flags = 0;
           
           switch(nd_type(body)) {
+            case NODE_ATTRSET:
+              if (argc != 1) { rb_raise(rb_eArgError, "wrong number of arguments (%d for 1)", argc); }
+              result = rb_ivar_set(recv, body.nd_vid, argv[0]);
+              break;
+            
             case NODE_CFUNC:
               // removed bug warning
               // removed event hooks handler
               result = call_cfunc(body.nd_cfnc, recv, body.nd_argc, argc, argv);
               break;
-              
+            
+            case NODE_IVAR:
+              if (argc != 0) { rb_raise(rb_eArgError, "wrong number of arguments (%d for 0)", argc); }
+              result = rb_attr_get(recv, body.nd_vid);
+              break;
+            
             // skipped other types of nodes for now
             
             case NODE_SCOPE:
@@ -5978,7 +6017,7 @@ class Red::MethodCompiler
               }
               break;
             default:
-              console.log('unimplemented node type in rb_call: %x', nd_type(body));
+              console.log('unimplemented node type in rb_call0: %x', nd_type(body));
           }
           ruby_current_node = _frame.node; // ff. was POP_FRAME
           ruby_frame = _frame.prev;
