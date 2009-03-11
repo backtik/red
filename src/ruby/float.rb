@@ -37,6 +37,59 @@ class Red::MethodCompiler
     END
   end
   
+  def flo_ge
+    add_function :rb_big2dbl, :isnan, :rb_num_coerce_relop
+    <<-END
+      function flo_ge(x, y) {
+        var b;
+        var a = x.value;
+        switch (TYPE(y)) {
+          case T_FIXNUM:
+            b = FIX2LONG(y);
+            break;
+          case T_BIGNUM:
+            b = rb_big2dbl(y);
+            break;
+          case T_FLOAT:
+            b = y.value;
+            if (isnan(b)) { return Qfalse; }
+            break;
+          default:
+            return rb_num_coerce_relop(x, y);
+        }
+        if (isnan(a)) { return Qfalse; }
+        return (a >= b) ? Qtrue : Qfalse;
+      }
+    END
+  end
+  
+  # verbatim
+  def flo_gt
+    add_function :rb_big2dbl, :isnan, :rb_num_coerce_relop
+    <<-END
+      function flo_gt(x, y) {
+        var b;
+        var a = x.value;
+        switch (TYPE(y)) {
+          case T_FIXNUM:
+            b = FIX2LONG(y);
+            break;
+          case T_BIGNUM:
+            b = rb_big2dbl(y);
+            break;
+          case T_FLOAT:
+            b = y.value;
+            if (isnan(b)) { return Qfalse; }
+            break;
+          default:
+            return rb_num_coerce_relop(x, y);
+        }
+        if (isnan(a)) { return Qfalse; }
+        return (a > b) ? Qtrue : Qfalse;
+      }
+    END
+  end
+  
   # NEEDS WORK
   def flo_hash
     <<-END
@@ -49,6 +102,60 @@ class Red::MethodCompiler
         }
         if (hash < 0) { hash = -hash; }
         return INT2FIX(hash);
+      }
+    END
+  end
+  
+  # verbatim
+  def flo_le
+    add_function :rb_big2dbl, :isnan, :rb_num_coerce_relop
+    <<-END
+      function flo_le(x, y) {
+        var b;
+        var a = x.value;
+        switch (TYPE(y)) {
+          case T_FIXNUM:
+            b = FIX2LONG(y);
+            break;
+          case T_BIGNUM:
+            b = rb_big2dbl(y);
+            break;
+          case T_FLOAT:
+            b = y.value;
+            if (isnan(b)) { return Qfalse; }
+            break;
+          default:
+            return rb_num_coerce_relop(x, y);
+        }
+        if (isnan(a)) { return Qfalse; }
+        return (a <= b) ? Qtrue : Qfalse;
+      }
+    END
+  end
+  
+  # verbatim
+  def flo_lt
+    add_function :rb_big2dbl, :isnan, :rb_num_coerce_relop
+    <<-END
+      function flo_lt(x, y) {
+        var b;
+        var a = x.value;
+        switch (TYPE(y)) {
+          case T_FIXNUM:
+            b = FIX2LONG(y);
+            break;
+          case T_BIGNUM:
+            b = rb_big2dbl(y);
+            break;
+          case T_FLOAT:
+            b = y.value;
+            if (isnan(b)) { return Qfalse; }
+            break;
+          default:
+            return rb_num_coerce_relop(x, y);
+        }
+        if (isnan(a)) { return Qfalse; }
+        return (a < b) ? Qtrue : Qfalse;
       }
     END
   end

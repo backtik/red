@@ -1,5 +1,37 @@
 class Red::MethodCompiler
   # verbatim
+  def rb_class_inherited_p
+    add_function :rb_raise
+    <<-END
+      function rb_class_inherited_p(mod, arg) {
+        var start = mod;
+        if (mod == arg) { return Qtrue; }
+        switch (TYPE(arg)) {
+          case T_MODULE:
+          case T_CLASS:
+            break;
+          default:
+            rb_raise(rb_eTypeError, "compared with non class/module");
+        }
+        if (FL_TEST(mod, FL_SINGLETON)) {
+          if (mod.m_tbl == arg.m_tbl) { return Qtrue; }
+          mod = mod.basic.klass;
+        }
+        while (mod) {
+          if (mod.m_tbl == arg.m_tbl) { return Qtrue; }
+          mod = mod.superclass;
+        }
+        /* not mod < arg; check if mod > arg */
+        while (arg) {
+          if (arg.m_tbl == start.m_tbl) { return Qfalse; }
+          arg = arg.superclass;
+        }
+        return Qnil;
+      }
+    END
+  end
+  
+  # verbatim
   def rb_mod_append_features
     add_function :rb_include_module, :rb_check_type
     <<-END
@@ -62,6 +94,34 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def rb_mod_ge
+    add_function :rb_raise, :rb_class_inherited_p
+    <<-END
+      function rb_mod_ge(mod, arg) {
+        switch (TYPE(arg)) {
+          case T_MODULE:
+          case T_CLASS:
+            break;
+          default:
+            rb_raise(rb_eTypeError, "compared with non class/module");
+        }
+        return rb_class_inherited_p(arg, mod);
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_mod_gt
+    add_function :rb_mod_ge
+    <<-END
+      function rb_mod_gt(mod, arg) {
+        if (mod == arg) { return Qfalse; }
+        return rb_mod_ge(mod, arg);
+      }
+    END
+  end
+  
+  # verbatim
   def rb_mod_include
     add_function :rb_check_type, :rb_funcall
     add_methods :append_features, :included
@@ -115,6 +175,17 @@ class Red::MethodCompiler
       function rb_mod_initialize(module) {
         if (rb_block_given_p()) { rb_mod_module_eval(0, 0, module); }
         return Qnil;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_mod_lt
+    add_function :rb_class_inherited_p
+    <<-END
+      function rb_mod_lt(mod, arg) {
+        if (mod == arg) { return Qfalse; }
+        return rb_class_inherited_p(mod, arg);
       }
     END
   end

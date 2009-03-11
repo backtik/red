@@ -250,6 +250,15 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def rb_str_length
+    <<-END
+      function rb_str_length(str) {
+        return LONG2NUM(str.ptr.length);
+      }
+    END
+  end
+  
   # CHECK
   def rb_str_new
     add_function :str_alloc
