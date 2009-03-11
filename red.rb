@@ -346,6 +346,7 @@ module Red
         :Qundef => 6
       }
       MISC = {
+        :ARY_MAX_SIZE       => 4294967295,
         :ARY_TMPLOCK        => 1 << (11 + 1),
         :BIGRAD             => 1 << 64, # assuming BITSPERDIG is 8 * 8
         :ID_ALLOCATOR       => 1,
@@ -911,7 +912,7 @@ module Red
   class Hash < String
     def initialize(*element_sexps)
       options  = element_sexps.pop
-      elements = element_sexps.map {|x| x.red! }.join(", ")
+      elements = element_sexps.map {|x| x.red! }.join(",")
       self << "r(%s,%s,[%s])" % [$line, TYPES[:NODE_HASH], elements]
     end
   end
@@ -1092,7 +1093,7 @@ module Red
   
   class Str < String
     def initialize(string_sexp, options)
-      self << "r(%s,%s,'%s')" % [$line, TYPES[:NODE_STR], string_sexp]
+      self << "r(%s,%s,%s)" % [$line, TYPES[:NODE_STR], string_sexp.inspect]
     end
   end
   

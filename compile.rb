@@ -1075,7 +1075,7 @@ class Red::MethodCompiler
       //rb_define_method(rb_cStruct, "each", rb_struct_each, 0);
         rb_define_method(rb_cEnumerator, "each", enumerator_each, 0);
       //rb_define_method(rb_cHash,"each", rb_hash_each, 0);
-      //rb_define_method(rb_cArray, "each", rb_ary_each, 0);
+        rb_define_method(rb_cArray, "each", rb_ary_each, 0);
       //rb_define_method(rb_cString, "each", rb_str_each_line, -1);
       END
     end
@@ -1916,8 +1916,8 @@ class Red::MethodCompiler
       $mc.add_function :rb_hash_size, :rb_str_length, :rb_ary_length, :rb_struct_size
       <<-END
         rb_define_method(rb_cString, "length", rb_str_length, 0);
-        rb_define_method(rb_cStruct, "length", rb_struct_size, 0);
-        rb_define_method(rb_cHash,"length", rb_hash_size, 0);
+      //rb_define_method(rb_cStruct, "length", rb_struct_size, 0);
+      //rb_define_method(rb_cHash,"length", rb_hash_size, 0);
         rb_define_method(rb_cArray, "length", rb_ary_length, 0);
       END
     end

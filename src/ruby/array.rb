@@ -11,7 +11,7 @@ class Red::MethodCompiler
     END
   end
   
-  # removed "capa" and "len" handling
+  # removed "len" and "capa" handling
   def ary_new
     add_function :ary_alloc, :rb_raise
     <<-END
@@ -203,6 +203,20 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def rb_ary_each
+    add_function :rb_yield
+    <<-END
+      function rb_ary_each(ary) {
+        RETURN_ENUMERATOR(ary, 0, 0);
+        for (var i = 0, p = ary.ptr, l = p.length; i < l; ++i) {
+          rb_yield(p[i]);
+        }
+        return ary;
+      }
+    END
+  end
+  
+  # verbatim
   def rb_ary_elt
     <<-END
       function rb_ary_elt(ary, offset) {
@@ -357,12 +371,22 @@ class Red::MethodCompiler
     END
   end
   
-  # CHECK
+  # verbatim
+  def rb_ary_length
+    add_function :rb_int2inum
+    <<-END
+      function rb_ary_length(ary) {
+        return LONG2NUM(ary.ptr.length);
+      }
+    END
+  end
+  
+  # replaced ARY_DEFAULT_SIZE with 0
   def rb_ary_new
-    add_function :ary_alloc
+    add_function :ary_new
     <<-END
       function rb_ary_new() {
-        return ary_alloc(rb_cArray);
+        return ary_new(rb_cArray, 0);
       }
     END
   end
@@ -403,7 +427,7 @@ class Red::MethodCompiler
     END
   end
   
-  # 
+  # verbatim
   def rb_ary_pop_m
     add_function :ary_shared_first
     <<-END
@@ -509,7 +533,7 @@ class Red::MethodCompiler
     END
   end
   
-  # removed "ary.aux.capa" stuff
+  # removed "len" and "capa" handling
   def rb_ary_store
     add_function :rb_raise, :rb_mem_clear
     <<-END
