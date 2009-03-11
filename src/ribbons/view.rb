@@ -8,6 +8,22 @@ class Red::MethodCompiler
     END
   end
   
+  def view_s_kvc_accessor
+    add_function :rb_kvc_attr
+    <<-END
+      function view_s_kvc_accessor(argc, argv, klass) {
+        var id;
+        var tmp = rb_scan_args(argc, argv, '*');
+        var ary = tmp[1];
+        for (var i = 0, p = ary.ptr, l = p.length; i < l; i++) {
+          id = rb_to_id(p[i]);
+          rb_kvc_attr(klass, id, Qtrue);
+        }
+        return Qnil;
+      }
+    END
+  end
+  
   def view_add_binding_to_controller
     <<-END
      function view_add_binding_to_controller(view, v_attr, controller, c_attr) {

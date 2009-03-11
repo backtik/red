@@ -19,6 +19,7 @@ class CounterController < Controller
 end
 
 class IncrementView < View
+  kvc_accessor :foobar
 end
 
 class DecrementView < View
@@ -27,13 +28,16 @@ end
 class NumberDisplayView < View
 end
 
+i = IncrementView.new(Document['#increase'])
+i.foobaz
+
 Document.ready? do
-  controller = CounterController.new
-  i = IncrementView.new(Document['increase'])
-  d = DecrementView.new(Document['decrease'])
-  n = NumberDisplayView.new(Document['current_number'])
-  
-  i.bind(:enabled, controller, 'can_increment')
-  d.bind(:enabled, controller, 'can_decrement')
-  n.bind(:count, controller, 'value')
+  true
+  # controller = CounterController.new
+  # d = DecrementView.new(Document['decrease'])
+  # n = NumberDisplayView.new(Document['current_number'])
+  # 
+  # i.bind(:enabled, controller, 'can_increment')
+  # d.bind(:enabled, controller, 'can_decrement')
+  # n.bind(:count, controller, 'value')
 end

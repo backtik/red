@@ -1902,6 +1902,13 @@ class Red::MethodCompiler
       END
     end
     
+    def kvc_accessor
+      $mc.add_function :view_s_kvc_accessor
+      <<-END
+        rb_define_method(rb_cView, "kvc_accessor", view_s_kvc_accessor, -1);
+      END
+    end
+    
     def lambda
       $mc.add_function :proc_lambda
       <<-END
@@ -5641,7 +5648,15 @@ class Red::MethodCompiler
         }
       END
     end
+<<<<<<< Updated upstream:compile.rb
+<<<<<<< Updated upstream:compile.rb
     
+=======
+        
+>>>>>>> Stashed changes:compile.rb
+=======
+        
+>>>>>>> Stashed changes:compile.rb
     # verbatim
     def rb_block_call
       add_function :iterate_method
