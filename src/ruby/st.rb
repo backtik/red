@@ -222,7 +222,7 @@ class Red::MethodCompiler
                   last.next = ptr.next || 0;
                 }
                 ptr = ptr.next || 0;
-                delete tmp;
+                delete(tmp);
                 table.num_entries--;
             }
           }

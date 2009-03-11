@@ -27,15 +27,10 @@
 #puts "six:   #{a}"
 
 class Mush
-  attr :foo, true
-  
   def initialize
-    @foo = 50
+    @fasodf = 1
   end
 end
 
-Element.new
-
 mush = Mush.new
-mush.foo = 25
-puts mush.foo
+mush.bar

@@ -125,7 +125,7 @@ class Red::MethodCompiler
     <<-END
       function inspect_hash(hash) {
         var str = rb_str_new("{");
-        rb_hash_foreach(hash, inspect_i, str);
+        rb_hash_foreach(hash, hash_inspect_i, str);
         str.ptr += '}';
         OBJ_INFECT(str, hash);
         return str;
@@ -133,11 +133,11 @@ class Red::MethodCompiler
     END
   end
   
-  # removed str_buf handling
-  def inspect_i
+  # removed str_buf handling, renamed from "inspect_i"
+  def hash_inspect_i
     add_function :rb_inspect
     <<-END
-      function inspect_i(key, value, str) {
+      function hash_inspect_i(key, value, str) {
         if (key == Qundef) { return ST_CONTINUE; }
         if (str.ptr.length > 1) { str.ptr += ', '; }
         var str2 = rb_inspect(key);

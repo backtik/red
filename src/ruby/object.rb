@@ -40,13 +40,34 @@ class Red::MethodCompiler
     END
   end
   
-  # modified string handling
+  def obj_inspect_i
+    add_function :rb_is_instance_id, :rb_id2name, :rb_inspect
+    <<-END
+      function obj_inspect_i(id, value, str) {
+        /* need not to show internal data */
+        if (CLASS_OF(value) == 0) { return ST_CONTINUE; }
+        if (!rb_is_instance_id(id)) { return ST_CONTINUE; }
+        if (str.ptr[0] == '-') { /* first element */
+          str.ptr = '#' + str.ptr + ' ';
+        } else {
+          str.ptr = str.ptr + ', ';
+        }
+        str.ptr += (rb_id2name(id) + '=');
+        var str2 = rb_inspect(value);
+        str.ptr += str2.ptr;
+        OBJ_INFECT(str, str2);
+        return ST_CONTINUE;
+      }
+    END
+  end
+  
+  # modified string handling, renamed from "inspect_i"
   def inspect_obj
-    add_function :st_foreach_safe, :inspect_i
+    add_function :st_foreach_safe, :obj_inspect_i
     <<-END
       function inspect_obj(obj, str) {
-        st_foreach_safe(obj.iv_tbl, inspect_i, str);
-        str.ptr = '#' + str.ptr + '>'
+        st_foreach_safe(obj.iv_tbl, obj_inspect_i, str);
+        str.ptr = '#' + str.ptr + '>';
         OBJ_INFECT(str, obj);
         return str;
       }
@@ -414,7 +435,7 @@ class Red::MethodCompiler
   
   # changed string handling
   def rb_obj_inspect
-    add_function :rb_obj_classname, :rb_inspecting_p, :rb_str_new, :rb_protect_inspect, :rb_funcall
+    add_function :rb_obj_classname, :rb_inspecting_p, :rb_str_new, :rb_protect_inspect, :rb_funcall, :inspect_obj
     add_method :to_s
     <<-END
       function rb_obj_inspect(obj) {
@@ -423,11 +444,11 @@ class Red::MethodCompiler
           var c = rb_obj_classname(obj);
           if (rb_inspecting_p(obj)) {
             str = rb_str_new();
-            str.ptr = "#<" + c + ":0x" + obj.toString(16) + " ...>";
+            str.ptr = "#<" + c + ":0x" + obj.rvalue.toString(16) + " ...>";
             return str;
           }
           str = rb_str_new();
-          str.ptr = "-<" + c + ":0x" + obj.toString(16);
+          str.ptr = "-<" + c + ":0x" + obj.rvalue.toString(16);
           return rb_protect_inspect(inspect_obj, obj, str);
         }
         return rb_funcall(obj, rb_intern("to_s"), 0, 0);

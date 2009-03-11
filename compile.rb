@@ -5591,37 +5591,6 @@ class Red::MethodCompiler
         }
       END
     end
-    # function rb_foo_set() { rb_iv_set(); rb_kvo_notify_observers(); }
-    # if (write) { rb_define_method(klass, rb_id_attrset(id), rb_foo_set, 1)}
-    def rb_kvc_attr_set
-      <<-END
-        function rb_kvc_attr_set(klass, id, ex) {
-          var noex;
-          if (!ex) {
-            noex = NOEX_PUBLIC;
-          } else if (SCOPE_TEST(SCOPE_PRIVATE)) {
-            noex = NOEX_PRIVATE;
-          } else if (SCOPE_TEST(SCOPE_PROTECTED)) {
-            noex = NOEX_PROTECTED;
-          } else {
-            noex = NOEX_PUBLIC;
-          }
-          if (!rb_is_local_id(id) && !rb_is_const_id(id)) { rb_name_error(id, "invalid attribute name '%s'", rb_id2name(id)); }
-          var name = rb_id2name(id);
-          if (!name) { rb_raise(rb_eArgError, "argument needs to be symbol or string"); }
-          var attriv = rb_intern('@' + name);
-          rb_add_method(klass, id, NEW_IVAR(attriv), noex);
-          function WHATEVZ(obj, value) {
-            rb_iv_set(obj, attriv, value);
-            for (var i = 0, p = obj.bindings[attriv], l = p.length; i < l; ++i) {
-              p[i]();
-            }
-            return value;
-          }
-          rb_define_method(klass, rb_id_attrset(id), WHATEVZ, 1);
-        }
-      END
-    end
     
     # verbatim
     def rb_block_call
@@ -7987,6 +7956,16 @@ class Red::MethodCompiler
       <<-END
         function rb_is_const_id(id) {
           return is_const_id(id) ? Qtrue : Qfalse;
+        }
+      END
+    end
+    
+    # verbatim
+    def rb_is_instance_id
+      add_function :is_instance_id
+      <<-END
+        function rb_is_instance_id(id) {
+          return is_instance_id(id) ? Qtrue : Qfalse;
         }
       END
     end
