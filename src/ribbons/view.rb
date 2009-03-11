@@ -2,6 +2,7 @@ class Red::MethodCompiler
   def view_initialize
     <<-END
       function view_initialize(view, element) {
+        rb_iv_set(view, '@element', element);
         view.callbacks = {};
       }
     END
