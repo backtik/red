@@ -27,10 +27,10 @@
 #puts "six:   #{a}"
 
 class Mush
-  def initialize
-    @fasodf = 1
-  end
+  attr :foobar
 end
 
 mush = Mush.new
-mush.bar
+puts mush.foobar
+
+puts Mush.nesting

@@ -1,17 +1,5 @@
 class Red::MethodCompiler
   # complete
-  def event_alloc
-    <<-END
-      function event_alloc(klass) {
-        var event = NEWOBJ();
-        OBJSETUP(event, klass, T_DATA);
-        event.ptr = 0;
-        return event;
-      }
-    END
-  end
-  
-  # complete
   def event_alt
     <<-END
       function event_alt(ev) {
@@ -168,12 +156,12 @@ class Red::MethodCompiler
   
   # complete
   def rb_event_wrapper
-    add_function :event_alloc, :rb_f_gecko_p
+    add_function :rb_obj_alloc, :rb_f_gecko_p
     <<-END
       function rb_event_wrapper(event) {
         event = event || window.event;
         if (!event) { return Qnil; }
-        var ev = event_alloc(rb_cEvent);
+        var ev = rb_obj_alloc(rb_cEvent);
         var code = 0;
         var related_target = 0;
         var key = Qnil;

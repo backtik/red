@@ -134,18 +134,6 @@ class Red::MethodCompiler
   end
   
   # complete
-  def req_alloc
-    <<-END
-      function req_alloc(klass) {
-        var req = NEWOBJ();
-        OBJSETUP(req, klass, T_DATA);
-        req.ptr = 0;
-        return req;
-      }
-    END
-  end
-  
-  # complete
   def req_cancel
     <<-END
       function req_cancel(req) {
@@ -164,7 +152,7 @@ class Red::MethodCompiler
   
   # 
   def req_execute
-    add_function :resp_alloc, :rb_process_scripts, :rb_funcall, :rb_req_parameters
+    add_function :rb_obj_alloc, :rb_process_scripts, :rb_funcall, :rb_req_parameters
     add_method :fire
     <<-END
       function req_execute(req) {
@@ -179,7 +167,7 @@ class Red::MethodCompiler
           if ((xhr.readyState != 4) || !(req.running)) { return; }
           req.running = Qfalse;
           try { req.status = xhr.status } catch (e) {}
-          var resp = req.response = resp_alloc(rb_cResponse);
+          var resp = req.response = rb_obj_alloc(rb_cResponse);
           if ((req.status >= 200) && (req.status < 300)) {
             resp.text = rb_process_scripts(xhr, req.eval_response, req.eval_scripts);
             resp.xml = xhr.responseXml || '';
