@@ -16,6 +16,9 @@ function r(line,type,a,b,c) {
       }
       return last;
     
+    case NODE_ATTRASGN:
+      return NEW_ATTRASGN(a, rb_intern(b), c);
+    
     case NODE_BEGIN:
       return NEW_BEGIN(a);
     
@@ -268,6 +271,7 @@ function red_init_bullshit() {
   last_value = 3600000;
   frame_unique = 1;
   lvtbl = {};
+  inspect_tbl = Qnil;
   prot_tag = { prev: 0, iter: 0 };
   ruby_errinfo = Qnil;
   ruby_block = 0;

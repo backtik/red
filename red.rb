@@ -346,6 +346,7 @@ module Red
         :Qundef => 6
       }
       MISC = {
+        :ARY_TMPLOCK        => 1 << (11 + 1),
         :BIGRAD             => 1 << 64, # assuming BITSPERDIG is 8 * 8
         :ID_ALLOCATOR       => 1,
         :FIXNUM_FLAG        => 0x01,
@@ -362,6 +363,7 @@ module Red
         :DBL_MAX_10_EXP     => 308,
         :DVAR_DONT_RECYCLE  => 1 << (11 + 2),
         :FRAME_DMETH        => 1,
+        :HASH_DELETED       => 1 << (11 + 1),
         :HASH_PROC_DEFAULT  => 1 << (11 + 2),
         :MIN_SIZE           => 8,
         :NODE_LSHIFT        => 11 + 8,

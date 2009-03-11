@@ -108,6 +108,37 @@ class Red::MethodCompiler
     END
   end
   
+  # modified to return array [result, begp, lenp] instead of using pointers
+  def rb_range_beg_len
+    add_function :rb_obj_is_kind_of, :rb_ivar_get, :rb_raise
+    <<-END
+      function rb_range_beg_len(range, len, err) {
+        if (!rb_obj_is_kind_of(range, rb_cRange)) { return Qfalse; }
+        var b, beg = b = NUM2LONG(rb_ivar_get(range, id_beg));
+        var e, end = e = NUM2LONG(rb_ivar_get(range, id_end));
+        if (beg < 0) {
+          beg += len;
+          if (beg < 0) {
+            if (err) { rb_raise(rb_eRangeError, "%d..%s%d out of range", b, EXCL(range) ? "." : "", e); }
+            return [Qnil, 0, 0];
+          }
+        }
+        if ((err === 0) || (err == 2)) {
+          if (beg > len) {
+            if (err) { rb_raise(rb_eRangeError, "%d..%s%d out of range", b, EXCL(range) ? "." : "", e); }
+            return [Qnil, 0, 0];
+          }
+          if (end > len) { end = len; }
+        }
+        if (end < 0) { end += len; }
+        if (!EXCL(range)) { end++; } /* include end point */
+        len = end - beg;
+        if (len < 0) { len = 0; }
+        return [Qtrue, beg, len];
+      }
+    END
+  end
+  
   # CHECK
   def rb_range_new
     add_function :rb_obj_alloc, :range_init

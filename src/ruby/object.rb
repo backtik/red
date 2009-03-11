@@ -241,7 +241,7 @@ class Red::MethodCompiler
   # CHECK
   def rb_method_missing
     add_function :rb_funcall, :rb_const_get, :rb_intern, :rb_str_new, :rb_class_new_instance,
-                 :rb_exc_raise
+                 :rb_exc_raise, :rb_ary_new4
     add_method :_!
     <<-END
       function rb_method_missing(argc, argv, obj) {
@@ -261,10 +261,8 @@ class Red::MethodCompiler
         var args = [];
         args[n++] = rb_funcall(rb_const_get(exc, rb_intern("message")), rb_intern("!"), 3, rb_str_new(format), obj, argv[0]); // changed rb_str_new2 to rb_str_new
         args[n++] = argv[0];
-        if (exc == rb_eNoMethodError) { // expanded rb_ary_new4
-          var ary4 = rb_ary_new();
-          MEMCPY(ary4.ptr, argv.slice(1), argc - 1);
-          args[n++] = ary4; // changed rb_ary_new4(argc - 1, argv) to ary4
+        if (exc == rb_eNoMethodError) {
+          args[n++] = rb_ary_new4(argc - 1, argv.slice(1));
         }
         exc = rb_class_new_instance(n, args, exc);
         ruby_frame = ruby_frame.prev; /* pop frame for "method_missing" */
@@ -499,6 +497,29 @@ class Red::MethodCompiler
             rb_raise(rb_eTypeError, "%s is not a symbol", rb_inspect(name).ptr);
         }
         return id;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_to_int
+    add_function :rb_to_integer
+    add_method :to_int
+    <<-END
+      function rb_to_int(val) {
+        return rb_to_integer(val, "to_int");
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_to_integer
+    add_function :convert_type, :rb_obj_is_kind_of, :rb_raise, :rb_obj_classname
+    <<-END
+      function rb_to_integer(val, method) {
+        var v = convert_type(val, "Integer", method, Qtrue);
+        if (!rb_obj_is_kind_of(v, rb_cInteger)) { rb_raise(rb_eTypeError, "%s#%s should return Integer", rb_obj_classname(val), method); }
+        return v;
       }
     END
   end

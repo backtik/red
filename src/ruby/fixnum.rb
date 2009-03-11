@@ -1,4 +1,29 @@
 class Red::MethodCompiler
+  # removed a check against "sizeof(VALUE)*CHAR_BIT"
+  def fix_aref
+    add_function :fix_coerce, :rb_big_norm
+    <<-END
+      function fix_aref(fix, idx) {
+        var val = FIX2LONG(fix);
+        if (!FIXNUM_P(idx = fix_coerce(idx))) {
+          idx = rb_big_norm(idx);
+          if (!FIXNUM_P(idx)) {
+            if (!idx.sign || val >= 0) { return INT2FIX(0); }
+            return INT2FIX(1);
+          }
+        }
+        var i = FIX2LONG(idx);
+        if (i < 0) { return INT2FIX(0); }
+      //if (sizeof(VALUE)*CHAR_BIT-1 < i) {
+      //  if (val < 0) { return INT2FIX(1); }
+      //  return INT2FIX(0);
+      //}
+        if (val & (1 << i)) { return INT2FIX(1); }
+        return INT2FIX(0);
+      }
+    END
+  end
+  
   # CHECK
   def fix_cmp
     add_function :rb_num_coerce_cmp
@@ -11,6 +36,17 @@ class Red::MethodCompiler
         } else {
           return rb_num_coerce_cmp(x, y);
         }
+      }
+    END
+  end
+  
+  # verbatim
+  def fix_coerce
+    add_function :rb_to_int
+    <<-END
+      function fix_coerce(x) {
+        while (!FIXNUM_P(x) && (TYPE(x) != T_BIGNUM)) { x = rb_to_int(x); }
+        return x;
       }
     END
   end

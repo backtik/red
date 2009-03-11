@@ -105,18 +105,17 @@ class Red::MethodCompiler
     <<-END
       function name_err_mesg_new(obj, mesg, recv, method) {
         var ptr = [mesg, recv, method];
-        rb_data_object_alloc(rb_cNameErrorMesg, ptr);
+        return rb_data_object_alloc(rb_cNameErrorMesg, ptr);
       }
     END
   end
   
-  # modified string handling
+  # modified string handling, modified rb_protect to return array instead of using pointers
   def name_err_mesg_to_str
     add_function :rb_protect, :rb_inspect, :rb_any_to_s, :rb_str_new,
                  :rb_obj_classname, :rb_f_sprintf
     <<-END
       function name_err_mesg_to_str(obj) {
-        console.log(obj);
         var ptr = obj.data;
         var mesg = ptr[0];
         if (NIL_P(mesg)) {
@@ -137,13 +136,14 @@ class Red::MethodCompiler
               desc = "false";
               break;
             default:
-              d = rb_protect(rb_inspect, obj, 0);
+              d = rb_protect(rb_inspect, obj, 0)[0];
               if (NIL_P(d) || (d.ptr.length > 65)) { d = rb_any_to_s(obj); }
               desc = d.ptr;
               break;
           }
           if (desc && (desc[0] != '#')) { d = rb_str_new(desc + ':' + rb_obj_classname(obj)); }
-          mesg = rb_f_sprintf(3, [mesg, ptr[2], d]);
+        //mesg = rb_f_sprintf(3, [mesg, ptr[2], d]);
+          mesg = rb_str_new(jsprintf(mesg.ptr, [rb_id2name(SYM2ID(ptr[2])), d.ptr]));
         }
         if (OBJ_TAINTED(obj)) OBJ_TAINT(mesg);
         return mesg;
@@ -156,12 +156,11 @@ class Red::MethodCompiler
     add_function :rb_attr_get, :rb_intern, :rb_class_name, :rb_iv_set
     <<-END
       function name_err_to_s(exc) {
-        var mesg = rb_attr_get(exc, rb_intern("mesg"));
-        var str = mesg;
+        var str = mesg = rb_attr_get(exc, rb_intern("mesg"));
         if (NIL_P(mesg)) { return rb_class_name(CLASS_OF(exc)); }
-        StringValue(str);
+      //StringValue(str);
         if (str != mesg) { rb_iv_set(exc, "mesg", mesg = str); }
-        if (OBJ_TAINTED(exc)) OBJ_TAINT(mesg);
+        if (OBJ_TAINTED(exc)) { OBJ_TAINT(mesg); }
         return mesg;
       }
     END

@@ -321,8 +321,8 @@ class Red::MethodCompiler
       //rb_define_method(rb_cString, "[]", rb_str_aref_m, -1);
         rb_define_singleton_method(rb_cHash, "[]", rb_hash_s_create, -1);
         rb_define_method(rb_cHash, "[]", rb_hash_aref, 1);
-      //rb_define_singleton_method(rb_cArray, "[]", rb_ary_s_create, -1);
-      //rb_define_method(rb_cArray, "[]", rb_ary_aref, -1);
+        rb_define_singleton_method(rb_cArray, "[]", rb_ary_s_create, -1);
+        rb_define_method(rb_cArray, "[]", rb_ary_aref, -1);
       //rb_define_method(rb_cFixnum, "[]", fix_aref, 1);
       //rb_define_method(rb_cProc, "[]", rb_proc_call, -2);
       END
@@ -334,9 +334,9 @@ class Red::MethodCompiler
       <<-END
         rb_define_method(rb_cStyles, "[]=", styles_aset, 2);
         rb_define_method(rb_cProperties, "[]=", prop_aset, 2);
-        rb_define_method(rb_cStruct, "[]=", rb_struct_aset, 2);
+      //rb_define_method(rb_cStruct, "[]=", rb_struct_aset, 2);
         rb_define_method(rb_cHash,"[]=", rb_hash_aset, 2);
-        rb_define_method(rb_cString, "[]=", rb_str_aset_m, -1);
+      //rb_define_method(rb_cString, "[]=", rb_str_aset_m, -1);
         rb_define_method(rb_cArray, "[]=", rb_ary_aset, -1);
       END
     end
@@ -1081,12 +1081,12 @@ class Red::MethodCompiler
       $mc.add_function :range_each, :rb_hash_each, :rb_str_each_line,
                        :rb_ary_each, :rb_struct_each, :enumerator_each
       <<-END
-        rb_define_method(rb_cRange, "each", range_each, 0);
-        rb_define_method(rb_cStruct, "each", rb_struct_each, 0);
+      //rb_define_method(rb_cRange, "each", range_each, 0);
+      //rb_define_method(rb_cStruct, "each", rb_struct_each, 0);
         rb_define_method(rb_cEnumerator, "each", enumerator_each, 0);
-        rb_define_method(rb_cHash,"each", rb_hash_each, 0);
-        rb_define_method(rb_cArray, "each", rb_ary_each, 0);
-        rb_define_method(rb_cString, "each", rb_str_each_line, -1);
+      //rb_define_method(rb_cHash,"each", rb_hash_each, 0);
+      //rb_define_method(rb_cArray, "each", rb_ary_each, 0);
+      //rb_define_method(rb_cString, "each", rb_str_each_line, -1);
       END
     end
     
@@ -4919,17 +4919,15 @@ class Red::MethodCompiler
       END
     end
     
-    # expanded rb_ary_new4
+    # verbatim
     def call_cfunc
-      add_function :rb_raise, :rb_ary_new
+      add_function :rb_raise, :rb_ary_new4
       <<-END
         function call_cfunc(func, recv, len, argc, argv) {
           if (len >= 0 && argc != len) { rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)", argc, len); }
           switch (len) {
             case -2:
-              var ary = rb_ary_new();
-              MEMCPY(ary.ptr, argv, argc);
-              return func(recv, ary); // changed rb_ary_new4(argc, argv) to ary
+              return func(recv, rb_ary_new4(argc, argv));
             case -1:
               return func(argc, argv, recv);
             case 0:  return func(recv);
@@ -5061,8 +5059,8 @@ class Red::MethodCompiler
           var errat = Qnil;
           var eclass;
           var e;
-          var einfo;
           var elen;
+          var einfo = '';
           if (NIL_P(ruby_errinfo)) { return; }
           PUSH_TAG(PROT_NONE);
           try { // was EXEC_TAG
@@ -5098,6 +5096,7 @@ class Red::MethodCompiler
           try { // was EXEC_TAG
             e = rb_funcall(ruby_errinfo, rb_intern("message"), 0, 0);
           //StringValue(e);
+            e = name_err_mesg_to_str(e);
             einfo = e.ptr;
             elen = einfo.length;
           } catch (x) {
@@ -5116,7 +5115,7 @@ class Red::MethodCompiler
                 var tail = 0;
                 var len = elen;
                 if (epath.ptr[0] == '#') { epath = 0; }
-                if ((tail = einfo.indexOf('\\n')) != 0) {
+                if ((tail = einfo.indexOf('\\n')) !== 0) {
                   len = tail - einfo;
                   tail++ /* skip newline */
                 }
@@ -5124,7 +5123,7 @@ class Red::MethodCompiler
                 if (epath) { rb_write_error(" (" + epath.ptr + ")\\n"); }
                 if (tail && (elen > len + 1)) {
                   rb_write_error(tail);
-                  if (einfo[elen-1] != '\\n') { rb_write_error("\\n"); }
+                  if (einfo[elen - 1] != '\\n') { rb_write_error("\\n"); }
                 }
               }
             }
@@ -5351,9 +5350,9 @@ class Red::MethodCompiler
       END
     end
     
-    # expanded rb_ary_new4
+    # verbatim
     def massign
-      add_function :assign, :rb_raise, :rb_ary_new
+      add_function :assign, :rb_raise, :rb_ary_new4
       <<-END
         function massign(self, node, val, pcall) {
           var len = val.ptr.length;
@@ -5370,9 +5369,7 @@ class Red::MethodCompiler
             if (node.nd_args == -1) {
               /* no check for mere `*' */
             } else if (!list && (i < len)) {
-              var ary = rb_ary_new();
-              MEMCPY(ary.ptr, p.slice(i), len - i);
-              assign(self, node.nd_args, ary, pcall); // changed rb_ary_new4(len-i, p + i)
+              assign(self, node.nd_args, rb_ary_new4(len - i, p.slice(i)), pcall);
             } else {
               assign(self, node.nd_args, rb_ary_new(), pcall);
             }
@@ -6102,6 +6099,7 @@ class Red::MethodCompiler
                    :rb_hash_aset, :rb_alias, :rb_to_id, :rb_ary_new,
                    :local_tbl, :module_setup, :class_prefix, :rb_copy_node_scope,
                    :rb_const_get_from
+      add_method :[]=
       <<-END
         function rb_eval(self, node) {
           ruby_current_node = node;
@@ -6126,7 +6124,7 @@ class Red::MethodCompiler
                   node = node.nd_2nd;
                   throw({ goto_flag: again_flag });
                   break;
-
+                
                 case NODE_ARRAY:
                   var ary = rb_ary_new(); // changed from rb_ary_new2, ignoring node->nd_alen
                   for (var i = 0, dest = ary.ptr; node; node = node.nd_next) {
@@ -6135,12 +6133,33 @@ class Red::MethodCompiler
                   }
                   result = ary;
                   break;
-
+                
+                // verbatim
+                case NODE_ATTRASGN:
+                  var recv;
+                  var argc;
+                  var argv;
+                  var scope;
+                //TMP_PROTECT;
+                  BEGIN_CALLARGS;
+                  if (node.nd_recv == 1) {
+                    recv = self;
+                    scope = 1;
+                  } else {
+                    recv = rb_eval(self, node.nd_recv);
+                    scope = 0;
+                  }
+                  SETUP_ARGS(node.nd_args);
+                  END_CALLARGS;
+                  ruby_current_node = node;
+                  rb_call(CLASS_OF(recv), recv, node.nd_mid, argc, argv, scope, self);
+                  result = argv[argc - 1];
+                
                 // verbatim
                 case NODE_BEGIN:
                   node = node.nd_body;
                   throw({ goto_flag: again_flag }); // was "goto again"
-
+                
                 // verbatim
                 case NODE_BREAK:
                   break_jump(rb_eval(self, node.nd_stts));

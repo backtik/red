@@ -1,5 +1,5 @@
 class Red::MethodCompiler
-  # CHECK
+  # removed "len" and "capa" handling
   def ary_alloc
     <<-END
       function ary_alloc(klass) {
@@ -11,28 +11,48 @@ class Red::MethodCompiler
     END
   end
   
-  # replaced with simple rb_ary_new
-  def get_inspect_tbl
-    add_function :rb_ary_new
+  # removed "capa" and "len" handling
+  def ary_new
+    add_function :ary_alloc, :rb_raise
     <<-END
-      function get_inspect_tbl(create) {
-        return rb_ary_new();
+      function ary_new(klass, len) {
+        var ary = ary_alloc(klass);
+        if (len < 0) { rb_raise(rb_eArgError, "negative array size (or size too big)"); }
+        if (len > ARY_MAX_SIZE) { rb_raise(rb_eArgError, "array size too big"); }
+        ary.ptr = [];
+        return ary;
       }
     END
   end
   
-  # CHECK
+  # simplified from thread-based original
+  def get_inspect_tbl
+    add_function :rb_ary_new
+    <<-END
+      function get_inspect_tbl(create) {
+        if (NIL_P(inspect_tbl)) {
+          if (create) { inspect_tbl = rb_ary_new(); }
+        }
+        return inspect_tbl;
+      }
+    END
+  end
+  
+  # removed str_buf handling
   def inspect_ary
-    add_function :rb_inspect, :rb_str_cat, :rb_str_append
+    add_function :rb_str_new, :rb_inspect
     <<-END
       function inspect_ary(ary) {
+        var tainted = OBJ_TAINTED(ary);
         var str = rb_str_new("[");
-        for (var i = 0, l = ary.ptr.length; i < l; ++i) {
-          s = rb_inspect(ary.ptr[i]);
-          if (i > 0) { rb_str_cat(str, ", "); }
-          rb_str_append(str, s);
+        for (var s, i = 0, p = ary.ptr, l = p.length; i < l; ++i) {
+          s = rb_inspect(p[i]);
+          if (OBJ_TAINTED(s)) { tainted = Qtrue; }
+          if (i > 0) { str.ptr += ", "; }
+          str.ptr += s.ptr;
         }
-        rb_str_cat(str, "]");
+        str.ptr += "]";
+        if (tainted) { OBJ_TAINT(str); }
         return str;
       }
     END
@@ -42,7 +62,7 @@ class Red::MethodCompiler
   def inspect_call
     <<-END
       function inspect_call(arg) {
-        return (arg.func)(arg.arg1, arg.arg2);
+        return arg.func(arg.arg1, arg.arg2);
       }
     END
   end
@@ -80,7 +100,7 @@ class Red::MethodCompiler
     END
   end
   
-  # CHECK
+  # modified "search_method" to return array instead of using pointers
   def rb_Array
     add_function :rb_check_array_type, :rb_intern, :search_method, :rb_raise, :rb_funcall, :rb_ary_new3
     add_method :to_a
@@ -92,7 +112,7 @@ class Red::MethodCompiler
           var m = search_method(CLASS_OF(val), id);
           var body = m[0];
           var origin = m[1];
-          if (body && origin.m_tbl != rb_mKernel.m_tbl) {
+          if (body && (origin.m_tbl != rb_mKernel.m_tbl)) {
             val = rb_funcall(val, id, 0);
             if (TYPE(val) != T_ARRAY) { rb_raise(rb_eTypeError, "'to_a' did not return Array"); }
             return val;
@@ -105,6 +125,83 @@ class Red::MethodCompiler
     END
   end
   
+  # modified rb_range_beg_len to return array instead of using pointers
+  def rb_ary_aref
+    add_function :rb_ary_subseq, :rb_scan_args, :rb_ary_entry, :rb_raise, :rb_range_beg_len
+    <<-END
+      function rb_ary_aref(argc, argv, ary) {
+        if (argc == 2) {
+          if (SYMBOL_P(argv[0])) { rb_raise(rb_eTypeError, "Symbol as array index"); }
+          var beg = NUM2LONG(argv[0]);
+          var len = NUM2LONG(argv[1]);
+          if (beg < 0) { beg += ary.ptr.length; }
+          return rb_ary_subseq(ary, beg, len);
+        }
+        if (argc != 1) { rb_scan_args(argc, argv, "11"); }
+        var arg = argv[0];
+        /* special case - speeding up */
+        if (FIXNUM_P(arg)) { return rb_ary_entry(ary, FIX2LONG(arg)); }
+        if (SYMBOL_P(arg)) { rb_raise(rb_eTypeError, "Symbol as array index"); }
+        /* check if idx is Range */
+        var tmp = rb_range_beg_len(arg, ary.ptr.length, 0);
+        switch (tmp[0]) {
+          case Qfalse:
+            break;
+          case Qnil:
+            return Qnil;
+          default:
+            return rb_ary_subseq(ary, tmp[1], tmp[2]);
+        }
+        return rb_ary_entry(ary, NUM2LONG(arg));
+      }
+    END
+  end
+  
+  # modified rb_range_beg_len to return array instead of using pointers, unwound "goto" architecture
+  def rb_ary_aset
+    add_function :rb_raise, :rb_ary_splice, :rb_range_beg_len, :rb_ary_store
+    <<-END
+      function rb_ary_aset(argc, argv, ary) {
+        if (argc == 3) {
+          if (SYMBOL_P(argv[0])) { rb_raise(rb_eTypeError, "Symbol as array index"); }
+          if (SYMBOL_P(argv[1])) { rb_raise(rb_eTypeError, "Symbol as subarray length"); }
+          rb_ary_splice(ary, NUM2LONG(argv[0]), NUM2LONG(argv[1]), argv[2]);
+          return argv[2];
+        }
+        if (argc != 2) { rb_raise(rb_eArgError, "wrong number of arguments (%d for 2)", argc); }
+        var offset;
+        if (FIXNUM_P(argv[0])) {
+          offset = FIX2LONG(argv[0]);
+        } else { // added to handle "goto fixnum"
+          if (SYMBOL_P(argv[0])) { rb_raise(rb_eTypeError, "Symbol as array index"); }
+          var tmp = rb_range_beg_len(argv[0], ary.ptr.length, 1);
+          if (tmp[0]) {
+            /* check if idx is Range */
+            rb_ary_splice(ary, tmp[1], tmp[2], argv[1]);
+            return argv[1];
+          }
+          offset = NUM2LONG(argv[0]);
+        }
+        rb_ary_store(ary, offset, argv[1]);
+        return argv[1];
+      }
+    END
+  end
+  
+  # changed rb_ary_new2 to rb_ary_new, expanded DUPSETUP
+  def rb_ary_dup
+    add_function :rb_ary_dup, :rb_obj_class, :rb_copy_generic_ivar
+    <<-END
+      function rb_ary_dup(ary) {
+        var dup = rb_ary_new();
+        OBJSETUP(dup, rb_obj_class(ary), ary.basic.flags & (T_MASK|FL_EXIVAR|FL_TAINT));
+        if (FL_TEST(ary, FL_EXIVAR)) { rb_copy_generic_ivar(dup, ary); }
+        MEMCPY(dup.ptr, ary.ptr, ary.ptr.length);
+        return dup;
+      }
+    END
+  end
+  
   # verbatim
   def rb_ary_elt
     <<-END
@@ -113,6 +210,17 @@ class Red::MethodCompiler
         if (p.length === 0) { return Qnil; }
         if ((offset < 0) || (p.length <= offset)) { return Qnil; }
         return p[offset];
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_ary_entry
+    add_function :rb_ary_elt
+    <<-END
+      function rb_ary_entry(ary, offset) {
+        if (offset < 0) { offset += ary.ptr.length; }
+        return rb_ary_elt(ary, offset);
       }
     END
   end
@@ -183,12 +291,12 @@ class Red::MethodCompiler
     END
   end
   
-  # CHECK
+  # changed rb_str_new2 to rb_str_new
   def rb_ary_inspect
-    add_function :rb_str_new, :rb_inspecting_p, :rb_protect_inspect
+    add_function :rb_str_new, :rb_inspecting_p, :rb_protect_inspect, :inspect_ary
     <<-END
       function rb_ary_inspect(ary) {
-        if (!ary.ptr.length) { return rb_str_new("[]"); }
+        if (ary.ptr.length === 0) { return rb_str_new("[]"); }
         if (rb_inspecting_p(ary)) { rb_str_new("[...]"); }
         return rb_protect_inspect(inspect_ary, ary, 0);
       }
@@ -272,6 +380,18 @@ class Red::MethodCompiler
     END
   end
   
+  # changed rb_ary_new2 to rb_ary_new
+  def rb_ary_new4
+    add_function :rb_ary_new
+    <<-END
+      function rb_ary_new4(n, elts) {
+        var ary = rb_ary_new();
+        if (n > 0 && elts) { MEMCPY(ary.ptr, elts, n); }
+        return ary;
+      }
+    END
+  end
+  
   # removed ELTS_SHARED stuff
   def rb_ary_pop
     <<-END
@@ -297,6 +417,20 @@ class Red::MethodCompiler
     END
   end
   
+  # hacked MEMCPY with offset
+  def rb_ary_plus
+    add_function :to_ary, :rb_ary_new
+    <<-END
+      function rb_ary_plus(x, y) {
+        y = to_ary(y);
+        var z = rb_ary_new();
+        MEMCPY(z.ptr, x.ptr, x.ptr.length);
+        MEMCPY(z.ptr, y.ptr, y.ptr.length, x.ptr.length);
+        return z;
+      }
+    END
+  end
+  
   # CHECK
   def rb_ary_push
     <<-END
@@ -311,6 +445,67 @@ class Red::MethodCompiler
   def rb_ary_replace
     <<-END
       function rb_ary_replace() {}
+    END
+  end
+  
+  # modified to use simple JS "reverse"
+  def rb_ary_reverse
+    <<-END
+      function rb_ary_reverse(ary) {
+      //rb_ary_modify(ary);
+        if (ary.ptr.length > 1) { ary.ptr.reverse(); }
+        return ary;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_ary_reverse_bang
+    add_function :rb_ary_reverse
+    <<-END
+      function rb_ary_reverse_bang(ary) {
+        return rb_ary_reverse(ary);
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_ary_reverse_m
+    add_function :rb_ary_reverse, :rb_ary_dup
+    <<-END
+      function rb_ary_reverse_m(ary) {
+        return rb_ary_reverse(rb_ary_dup(ary));
+      }
+    END
+  end
+  
+  # removed "len" and "capa" handling
+  def rb_ary_s_create
+    add_function :ary_alloc
+    <<-END
+      function rb_ary_s_create(argc, argv, klass) {
+        var ary = ary_alloc(klass);
+        if (argc > 0) {
+          ary.ptr = [];
+          MEMCPY(ary.ptr, argv, argc);
+        }
+        return ary;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_ary_sort_bang
+    add_function :rb_ensure, :sort_internal, :sort_unlock
+    <<-END
+      function rb_ary_sort_bang(ary) {
+      //rb_ary_modify(ary);
+        if (ary.ptr.length > 1) {
+          FL_SET(ary, ARY_TMPLOCK); /* prohibit modification during sort */
+          rb_ensure(sort_internal, ary, sort_unlock, ary);
+        }
+        return ary;
+      }
     END
   end
   
@@ -334,6 +529,32 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def rb_ary_subseq
+    add_function :rb_obj_class, :ary_new, :ary_make_shared, :ary_alloc
+    <<-END
+      function rb_ary_subseq(ary, beg, len) {
+        var p = ary.ptr;
+        var l = p.length;
+        if (beg > l) { return Qnil; }
+        if ((beg < 0) || (len < 0)) { return Qnil; }
+        if ((l < len) || (l < (beg + len))) {
+          len = l - beg;
+          if (len < 0) { len = 0; }
+        }
+        var klass = rb_obj_class(ary);
+        if (len == 0) { return ary_new(klass, 0); }
+        var shared = ary_make_shared(ary);
+        var ptr = p;
+        var ary2 = ary_alloc(klass);
+        ary2.ptr = ptr + beg;
+        ary2.aux.shared = shared;
+        FL_SET(ary2, ELTS_SHARED);
+        return ary2;
+      }
+    END
+  end
+  
   # changed rb_ary_new2 to rb_ary_new
   def rb_ary_to_a
     add_function :rb_obj_class, :rb_ary_new, :rb_ary_replace
@@ -344,6 +565,15 @@ class Red::MethodCompiler
           rb_ary_replace(dup, ary);
           return dup;
         }
+        return ary;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_ary_to_ary_m
+    <<-END
+      function rb_ary_to_ary_m(ary) {
         return ary;
       }
     END
@@ -373,9 +603,10 @@ class Red::MethodCompiler
     END
   end
   
-  # CHECK
+  # verbatim
   def rb_check_array_type
     add_function :rb_check_convert_type
+    add_method :to_ary
     <<-END
       function rb_check_array_type(ary) {
         return rb_check_convert_type(ary, T_ARRAY, "Array", "to_ary");
@@ -406,15 +637,14 @@ class Red::MethodCompiler
     END
   end
   
-  # CHECK
+  # verbatim
   def rb_protect_inspect
-    add_function :rb_ary_new, :rb_obj_id, :rb_ary_includes, :rb_ary_push, :rb_ensure, :inspect_call, :inspect_ensure
+    add_function :rb_ary_new, :rb_obj_id, :rb_ary_includes, :rb_ary_push, :rb_ensure, :inspect_call, :inspect_ensure, :get_inspect_tbl
     <<-END
       function rb_protect_inspect(func, obj, arg) {
         var iarg = {};
-        var inspect_tbl = rb_ary_new(); // get_inspect_tbl(Qtrue);
+        var inspect_tbl = get_inspect_tbl(Qtrue);
         var id = rb_obj_id(obj);
-        return func(obj, arg);
         if (rb_ary_includes(inspect_tbl, id)) { return func(obj, arg); }
         rb_ary_push(inspect_tbl, id);
         var iarg = { func: func, arg1: obj, arg2: arg };
@@ -433,6 +663,63 @@ class Red::MethodCompiler
           if (!rb_eql(rb_ary_elt(ary1, i), rb_ary_elt(ary2, i))) { return Qfalse; }
         }
         return Qtrue;
+      }
+    END
+  end
+  
+  # EMPTY
+  def ruby_qsort
+    <<-END
+      function ruby_qsort() {}
+    END
+  end
+  
+  # EMPTY
+  def sort_1
+    <<-END
+      function sort_1() {}
+    END
+  end
+  
+  # EMPTY
+  def sort_2
+    <<-END
+      function sort_2() {}
+    END
+  end
+  
+  # 
+  def sort_internal
+    add_function :ruby_qsort, :sort_1, :sort_2
+    <<-END
+      function sort_internal(ary) {
+        var data = {};
+        data.ary = ary;
+        data.ptr = ary.ptr;
+        data.len = ary.ptr.length;
+        ruby_qsort(ary.ptr, ary.ptr.len, /*sizeof(VALUE),*/ rb_block_given_p() ? sort_1 : sort_2, data);
+        return ary;
+      }
+    END
+  end
+  
+  # verbatim
+  def sort_unlock
+    <<-END
+      function sort_unlock(ary) {
+        FL_UNSET(ary, ARY_TMPLOCK);
+        return ary;
+      }
+    END
+  end
+  
+  # verbatim
+  def to_ary
+    add_function :rb_convert_type
+    add_method :to_ary
+    <<-END
+      function to_ary(ary) {
+        return rb_convert_type(ary, T_ARRAY, "Array", "to_ary");
       }
     END
   end

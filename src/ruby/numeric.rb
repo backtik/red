@@ -87,6 +87,17 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def num_to_int
+    add_function :rb_funcall
+    add_method :to_i
+    <<-END
+      function num_to_int(num) {
+        return rb_funcall(num, id_to_i, 0, 0);
+      }
+    END
+  end
+  
   # modified do_coerce to return array instead of using pointers
   def rb_num_coerce_bin
     add_function :rb_funcall, :do_coerce

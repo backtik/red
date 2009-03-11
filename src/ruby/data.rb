@@ -1,5 +1,5 @@
 class Red::MethodCompiler
-  # CHECK
+  # removed "mark" and "free" GC handling
   def rb_data_object_alloc
     add_function :rb_check_type
     <<-END
