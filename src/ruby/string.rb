@@ -69,6 +69,21 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def rb_str_aref_m
+    add_function :rb_str_subpat, :rb_str_substr, :rb_raise, :rb_str_aref
+    <<-END
+      function rb_str_aref_m(argc, argv, str) {
+        if (argc == 2) {
+          if (TYPE(argv[0]) == T_REGEXP) { return rb_str_subpat(str, argv[0], NUM2INT(argv[1])); }
+          return rb_str_substr(str, NUM2LONG(argv[0]), NUM2LONG(argv[1]));
+        }
+        if (argc != 1) { rb_raise(rb_eArgError, "wrong number of arguments (%d for 1)", argc); }
+        return rb_str_aref(str, argv[0]);
+      }
+    END
+  end
+  
   # CHECK
   def rb_str_cat
     <<-END
@@ -212,10 +227,12 @@ class Red::MethodCompiler
     END
   end
   
-  # EMPTY
+  # TOTALLY WRONG
   def rb_str_inspect
     <<-END
-      function rb_str_inspect() {}
+      function rb_str_inspect(str) {
+        return rb_str_new('"' + str.ptr + '"');
+      }
     END
   end
   
@@ -245,6 +262,20 @@ class Red::MethodCompiler
     END
   end
   
+  # removed "len" handling
+  def rb_str_plus
+    add_function :rb_str_new
+    <<-END
+      function rb_str_plus(str1, str2) {
+      //StringValue(str2);
+        var str3 = rb_str_new();
+        str3.ptr = str1.ptr + str2.ptr;
+        if (OBJ_TAINTED(str1) || OBJ_TAINTED(str2)) { OBJ_TAINT(str3); }
+        return str3;
+      }
+    END
+  end
+  
   # CHECK
   def rb_str_replace
     <<-END
@@ -254,6 +285,72 @@ class Red::MethodCompiler
       //rb_str_modify(str);
         str.ptr = str2.ptr;
         return str;
+      }
+    END
+  end
+  
+  # modified string handling
+  def rb_str_reverse
+    add_function :rb_str_dup, :rb_str_new
+    <<-END
+      function rb_str_reverse(str) {
+        if (str.ptr.length <= 1) { return rb_str_dup(str); }
+        var s = str.ptr.split('').reverse().join('');
+        var obj = rb_str_new(s);
+        OBJ_INFECT(obj, str);
+        return obj;
+      }
+    END
+  end
+  
+  # modified string handling
+  def rb_str_reverse_bang
+    <<-END
+      function rb_str_reverse_bang(str) {
+        if (str.ptr.length > 1) { str.ptr = str.ptr.split('').reverse().join(''); }
+        return str;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_str_subpat
+    add_function :rb_reg_search, :rb_reg_nth_match, :rb_backref_get
+    <<-END
+      function rb_str_subpat(str, re, nth) {
+        if (rb_reg_search(re, str, 0, 0) >= 0) { return rb_reg_nth_match(nth, rb_backref_get()); }
+        return Qnil;
+      }
+    END
+  end
+  
+  # 
+  def rb_str_substr
+    <<-END
+      function rb_str_substr(str, beg, len) {
+      //VALUE str2;
+      //var p = str.ptr;
+      //var l = str.ptr.length;
+      //if (len < 0) { return Qnil; }
+      //if (beg > l) { return Qnil; }
+      //if (beg < 0) {
+      //  beg += l;
+      //  if (beg < 0) { return Qnil; }
+      //}
+      //if (beg + len > l) { len = l - beg; }
+      //if (len < 0) { len = 0; }
+      //if (len == 0) {
+      //  str2 = rb_str_new5(str,0,0);
+      //} else if (len > sizeof(struct RString)/2 && (beg + len) == l)) && !FL_TEST(str, STR_ASSOC)) {
+      //  str2 = rb_str_new4(str);
+      //  str2 = str_new3(rb_obj_class(str2), str2);
+      //  RSTRING(str2)->ptr += RSTRING(str2)->len - len;
+      //  RSTRING(str2)->len = len;
+      //} else {
+      //  str2 = rb_str_new5(str, RSTRING(str)->ptr+beg, len);
+      //}
+      //OBJ_INFECT(str2, str);
+      //return str2;
       }
     END
   end
@@ -276,6 +373,24 @@ class Red::MethodCompiler
     <<-END
       function rb_str_to_f(str) {
         return rb_float_new(rb_str_to_dbl(str, Qfalse));
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_str_to_i
+    add_function :rb_scan_args, :rb_raise, :rb_str_to_inum
+    <<-END
+      function rb_str_to_i(argc, argv, str) {
+        var base;
+        var b = rb_scan_args(argc, argv, "01")[1];
+        if (argc == 0) {
+          base = 10;
+        } else {
+          base = NUM2INT(b);
+        }
+        if (base < 0) { rb_raise(rb_eArgError, "illegal radix %d", base); }
+        return rb_str_to_inum(str, base, Qfalse);
       }
     END
   end

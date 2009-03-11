@@ -26,8 +26,16 @@
 #end
 #puts "six:   #{a}"
 
-puts({:a => 1, :b => {:a => 1.5}}.inspect)
-puts :a.hash
-puts :a.hash
-puts :b.hash
-puts :c.hash
+
+class Mush
+  def yell
+    @foo = {:a => 1}
+    @foo[:b] = @foo
+    puts @foo.inspect
+    puts ""
+    puts @foo[:b].inspect
+    puts ""
+    puts @foo[:b][:b].inspect
+  end
+end
+Enumerable::Enumerator.new(Mush.new, :yell).each { true }

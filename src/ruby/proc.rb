@@ -59,7 +59,7 @@ class Red::MethodCompiler
   
   # CHECK
   def proc_invoke
-    add_function :proc_set_safe_level
+    add_function :proc_set_safe_level, :return_jump
     <<-END
       function proc_invoke(proc, args, self, klass) {
         var result = Qundef;

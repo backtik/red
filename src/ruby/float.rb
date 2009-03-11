@@ -79,6 +79,25 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def flo_plus
+    add_function :rb_float_new, :rb_num_coerce_bin, :rb_big2dbl
+    <<-END
+      function flo_plus(x, y) {
+        switch (TYPE(y)) {
+          case T_FIXNUM:
+            return rb_float_new(x.value + FIX2LONG(y));
+          case T_BIGNUM:
+            return rb_float_new(x.value + rb_big2dbl(y));
+          case T_FLOAT:
+            return rb_float_new(x.value + y.value);
+          default:
+            return rb_num_coerce_bin(x, y);
+        }
+      }
+    END
+  end
+  
+  # verbatim
   def flo_to_f
     <<-END
       function flo_to_f(num) {
@@ -110,6 +129,21 @@ class Red::MethodCompiler
         while ((buf[p - 1] == '0') && ISDIGIT(buf[p - 2])) { p--; }
         buf[p] = buf[e]; // was "memmove(p, e, strlen(e) + 1)"
         return rb_str_new(buf);
+      }
+    END
+  end
+  
+  # verbatim
+  def flo_truncate
+    add_function :rb_dbl2big
+    <<-END
+      function flo_truncate(num) {
+        var f = num.value;
+        if (f > 0.0) { f = Math.floor(f); }
+        if (f < 0.0) { f = Math.ceil(f); }
+        if (!FIXABLE(f)) { return rb_dbl2big(f); }
+        var val = f;
+        return LONG2FIX(val);
       }
     END
   end

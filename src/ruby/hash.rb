@@ -24,8 +24,10 @@ class Red::MethodCompiler
   def hash_alloc0
     <<-END
       function hash_alloc0(klass) {
-        var hash = { ifnone: Qnil, val: last_value += 4 };
+        var hash = NEWOBJ();
         OBJSETUP(hash, klass, T_HASH);
+        hash.ifnone = Qnil;
+        hash.iter_lev = 0;
         return hash;
       }
     END
@@ -220,17 +222,14 @@ class Red::MethodCompiler
     END
   end
   
-  # CHECK
+  # verbatim
   def rb_hash_aref
-    add_function :rb_funcall
+    add_function :rb_funcall, :st_lookup
     add_method :default
     <<-END
       function rb_hash_aref(hash, key) {
-        var val;
-        if (!(val = hash.tbl[key])) {
-          return rb_funcall(hash, id_default, 1, key);
-        }
-        return val;
+        if (!(val = st_lookup(hash.tbl, key))[0]) { return rb_funcall(hash, id_default, 1, key); }
+        return val[1];
       }
     END
   end
@@ -359,12 +358,12 @@ class Red::MethodCompiler
     END
   end
   
-  # CHECK
+  # verbatim
   def rb_hash_inspect
     add_function :rb_str_new, :rb_inspecting_p, :rb_protect_inspect, :inspect_hash
     <<-END
       function rb_hash_inspect(hash) {
-        if (hash.tbl === 0 || hash.tbl.length === 0) { return rb_str_new("{}"); }
+        if (((hash.tbl || 0) === 0) || (hash.tbl.num_entries === 0)) { return rb_str_new("{}"); }
         if (rb_inspecting_p(hash)) { return rb_str_new("{...}"); }
         return rb_protect_inspect(inspect_hash, hash, 0);
       }
@@ -389,6 +388,32 @@ class Red::MethodCompiler
     <<-END
       function rb_hash_new() {
         return hash_alloc(rb_cHash);
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_hash_rehash
+    add_function :rb_hash_modify, :st_init_table_with_size, :rb_hash_foreach, :rb_hash_rehash_i, :st_free_table
+    <<-END
+      function rb_hash_rehash(hash) {
+        rb_hash_modify(hash);
+        var tbl = st_init_table_with_size(objhash, hash.tbl.num_entries);
+        rb_hash_foreach(hash, rb_hash_rehash_i, tbl);
+        st_free_table(hash.tbl);
+        hash.tbl = tbl;
+        return hash;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_hash_rehash_i
+    add_function :st_insert
+    <<-END
+      function rb_hash_rehash_i(key, value, tbl) {
+        if (key != Qundef) { st_insert(tbl, key, value); }
+        return ST_CONTINUE;
       }
     END
   end
