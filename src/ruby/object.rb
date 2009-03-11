@@ -40,6 +40,19 @@ class Red::MethodCompiler
     END
   end
   
+  # modified string handling
+  def inspect_obj
+    add_function :st_foreach_safe, :inspect_i
+    <<-END
+      function inspect_obj(obj, str) {
+        st_foreach_safe(obj.iv_tbl, inspect_i, str);
+        str.ptr = '#' + str.ptr + '>'
+        OBJ_INFECT(str, obj);
+        return str;
+      }
+    END
+  end
+  
   # changed rb_str_new2 to rb_str_new
   def main_to_s
     add_function :rb_str_new
