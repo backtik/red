@@ -319,6 +319,7 @@ class Red::MethodCompiler
         rb_define_method(rb_cStyles, "[]", styles_aref, 1);
         rb_define_method(rb_cProperties, "[]", prop_aref, 1);
         rb_define_module_function(rb_mDocument, "[]", elem_find, 1);
+        rb_define_method(rb_cElement, "[]", elem_find, 1);
       //rb_define_method(rb_cStruct, "[]", rb_struct_aref, 1);
       //rb_define_method(rb_cMethod, "[]", method_call, -1);
       //rb_define_method(rb_cString, "[]", rb_str_aref_m, -1);
@@ -1925,6 +1926,13 @@ class Red::MethodCompiler
       <<-END
         rb_define_method(rb_cRange, "last", range_last, 0);
         rb_define_method(rb_cArray, "last", rb_ary_last, -1);
+      END
+    end
+    
+    def last_child
+      $mc.add_function :elem_last_child
+      <<-END
+        rb_define_method(rb_cElement, "last_child", elem_last_child, 0);
       END
     end
     
