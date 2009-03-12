@@ -31,4 +31,8 @@ Document.ready? do
   iv = IncrementView.new(Document['#increase'])
   dv = DecrementView.new(Document['#decrease'])
   nv = NumberDisplayView.new(Document['#current_number'])
+  
+  c.increment_view = iv
+  c.decrement_view = dv
+  c.count_view     = nv
 end
