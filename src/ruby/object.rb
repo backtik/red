@@ -66,14 +66,7 @@ class Red::MethodCompiler
     add_function :st_foreach_safe, :obj_inspect_i
     <<-END
       function inspect_obj(obj, str) {
-<<<<<<< Updated upstream:src/ruby/object.rb
         st_foreach_safe(obj.iv_tbl, obj_inspect_i, str);
-=======
-        st_foreach_safe(obj.iv_tbl, inspect_i, str);
-<<<<<<< Updated upstream:src/ruby/object.rb
->>>>>>> Stashed changes:src/ruby/object.rb
-=======
->>>>>>> Stashed changes:src/ruby/object.rb
         str.ptr = '#' + str.ptr + '>';
         OBJ_INFECT(str, obj);
         return str;

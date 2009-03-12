@@ -38,8 +38,11 @@ require 'src/redshift/request'
 require 'src/redshift/response'
 require 'src/redshift/styles'
 require 'src/redshift/user_event'
-require 'src/ribbons/view'
 require 'src/ribbons/controller'
+require 'src/ribbons/kvc'
+require 'src/ribbons/view'
+
+
 
 class Red::MethodCompiler
   attr_reader :functions
@@ -560,9 +563,11 @@ class Red::MethodCompiler
     end
     
     def bind
-      $mc.add_function :umethod_bind
+      # $mc.add_function :umethod_bind, 
+      $mc.add_function :view_add_binding_to_controller
       <<-END
-        rb_define_method(rb_cUnboundMethod, "bind", umethod_bind, 1);
+        rb_define_method(rb_cView, "bind", view_add_binding_to_controller, 3);
+        //rb_define_method(rb_cUnboundMethod, "bind", umethod_bind, 1);
       END
     end
     
@@ -1698,9 +1703,8 @@ class Red::MethodCompiler
                        :exc_initialize, :name_err_initialize,
                        :exit_initialize, :rb_ary_initialize, :rb_struct_initialize,
                        :enumerator_initialize, :elem_initialize, :req_initialize,
-                       :view_initialize, :controller_initialize
+                       :view_initialize
       <<-END
-        rb_define_method(rb_cController, "initialize", controller_initialize, 0);
         rb_define_method(rb_cView, "initialize", view_initialize, 1);
         rb_define_method(rb_cRequest, "initialize", req_initialize, -1);
         rb_define_method(rb_cElement, "initialize", elem_initialize, 1);
@@ -1903,9 +1907,9 @@ class Red::MethodCompiler
     end
     
     def kvc_accessor
-      $mc.add_function :view_s_kvc_accessor
+      $mc.add_function :view_s_kvc_accessor, :rb_define_singleton_method
       <<-END
-        rb_define_method(rb_cView, "kvc_accessor", view_s_kvc_accessor, -1);
+        rb_define_singleton_method(rb_cView, "kvc_accessor", view_s_kvc_accessor, -1);
       END
     end
     
@@ -3746,10 +3750,11 @@ class Red::MethodCompiler
     
     #
     def Init_Controller
-      add_function :rb_define_class
+      add_function :rb_define_class, :rb_def_alloc_func, :controller_alloc
       <<-END
         function Init_Controller() {
           rb_cController = rb_define_class("Controller", rb_cObject);
+          rb_define_alloc_func(rb_cController, controller_alloc);
         }
       END
     end
@@ -5648,15 +5653,7 @@ class Red::MethodCompiler
         }
       END
     end
-<<<<<<< Updated upstream:compile.rb
-<<<<<<< Updated upstream:compile.rb
     
-=======
-        
->>>>>>> Stashed changes:compile.rb
-=======
-        
->>>>>>> Stashed changes:compile.rb
     # verbatim
     def rb_block_call
       add_function :iterate_method

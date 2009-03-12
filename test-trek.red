@@ -1,8 +1,10 @@
 class CounterController < Controller
+  attr_accessor :increment_view, :decrement_view, :count_view # "outlets"
+  
   def initialize
     @max_value = 10
     @min_value = 0
-    @value = 5      # sets initial value
+    @value = 5
   end
   
   def can_increment
@@ -12,32 +14,21 @@ class CounterController < Controller
   def can_decrement
     @value > @min_value
   end
-  
-  def value
-    @value
-  end
 end
 
 class IncrementView < View
-  kvc_accessor :foobar
 end
 
 class DecrementView < View
 end
 
 class NumberDisplayView < View
+
 end
 
-i = IncrementView.new(Document['#increase'])
-i.foobaz
-
 Document.ready? do
-  true
-  # controller = CounterController.new
-  # d = DecrementView.new(Document['decrease'])
-  # n = NumberDisplayView.new(Document['current_number'])
-  # 
-  # i.bind(:enabled, controller, 'can_increment')
-  # d.bind(:enabled, controller, 'can_decrement')
-  # n.bind(:count, controller, 'value')
+  c = CounterController.new
+  iv = IncrementView.new(Document['#increase'])
+  dv = DecrementView.new(Document['#decrease'])
+  nv = NumberDisplayView.new(Document['#current_number'])
 end
