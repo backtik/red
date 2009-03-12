@@ -1,11 +1,11 @@
 class Red::MethodCompiler
-  # 
-  def elem_find
-    add_function :rb_get_element_by_id_string
+  
+  def elem_children
+    add_function :rb_dom_walk
     <<-END
-      function elem_find(klass, str) {
-        return rb_get_element_by_id_string(str.ptr);
-      }
+     function elem_children(elem) {
+       return rb_dom_walk(elem.ptr, 'nextSibling', 'firstChild', true);
+     }
     END
   end
   
@@ -23,6 +23,29 @@ class Red::MethodCompiler
     <<-END
       function elem_eql(elem, elem2) {
         return (elem.ptr === elem2.ptr) ? Qtrue : Qfalse;
+      }
+    END
+  end
+  
+  # complete
+  def elem_find
+    add_function :rb_get_element_by_id_string, :rb_get_elements_array
+    <<-END
+      function elem_find(elem, str) {
+        var element = elem.ptr;
+        var string  = str.ptr;
+        if (string.match(/^#[0-9a-zA-z_\\-]+$/)) { return rb_get_element_by_id_string(string, element); }
+        return rb_get_elements_array(string, element);
+      }
+    END
+  end
+  
+  # complete
+  def elem_first_child
+    add_function :rb_dom_walk
+    <<-END
+      function elem_first_child(elem) {
+        return rb_dom_walk(elem.ptr, 'nextSibling', 'firstChild', false);
       }
     END
   end
@@ -87,11 +110,81 @@ class Red::MethodCompiler
   end
   
   # complete
+  def elem_last_child
+    add_function :rb_dom_walk
+    <<-END
+      function elem_last_child(elem) {
+        return rb_dom_walk(elem.ptr, 'previousSibling', 'lastChild', false);
+      }
+    END
+  end
+  
+  # complete
   def elem_left
     add_function :rb_element_position
     <<-END
       function elem_left(elem) {
         return INT2FIX(rb_element_position(elem.ptr)[0]);
+      }
+    END
+  end
+  
+  # complete
+  def elem_next_element
+    add_function :rb_dom_walk
+    <<-END
+      function elem_next_element(elem) {
+        return rb_dom_walk(elem.ptr, 'nextSibling', null, false);
+      }
+    END
+  end
+  
+  # complete
+  def elem_next_elements
+    add_function :rb_dom_walk
+    <<-END
+      function elem_next_elements(elem) {
+        return rb_dom_walk(elem.ptr, 'nextSibling', null, true);
+      }
+    END
+  end
+  
+  # complete
+  def elem_parent
+    add_function :rb_dom_walk
+    <<-END
+      function elem_parent(elem) {
+        return rb_dom_walk(elem.ptr, 'parentNode', null, false);
+      }
+    END
+  end
+  
+  # complete
+  def elem_parents
+    add_function :rb_dom_walk
+    <<-END
+      function elem_parents(elem) {
+        return rb_dom_walk(elem.ptr, 'parentNode', null, true);
+      }
+    END
+  end
+  
+  # complete
+  def elem_previous_element
+    add_function :rb_dom_walk
+    <<-END
+      function elem_previous_element(elem) {
+        return rb_dom_walk(elem.ptr, 'previousSibling', null, false);
+      }
+    END
+  end
+  
+  # complete
+  def elem_previous_elements
+    add_function :rb_dom_walk
+    <<-END
+      function elem_previous_elements(elem) {
+        return rb_dom_walk(elem.ptr, 'previousSibling', null, true);
       }
     END
   end
@@ -338,8 +431,23 @@ class Red::MethodCompiler
   def rb_get_element_by_id_string
     add_function :rb_element_wrapper
     <<-END
-      function rb_get_element_by_id_string(name) {
-        return rb_element_wrapper(document.getElementById(name));
+      function rb_get_element_by_id_string(name, scope) {
+        return rb_element_wrapper(Sizzle(name, scope)[0]);
+      }
+    END
+  end
+  
+  # complete
+  def rb_get_elements_array
+    add_function :rb_ary_new, :rb_ary_push, :rb_element_wrapper
+    <<-END
+      function rb_get_elements_array(string, scope) {
+        var src = Sizzle(string, scope);
+        var ary = rb_ary_new();
+        for (var i = 0, l = src.length; i < l; i++) {
+          rb_ary_push(ary, rb_element_wrapper(src[i]));
+        }
+        return ary;
       }
     END
   end

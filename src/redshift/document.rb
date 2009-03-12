@@ -212,6 +212,23 @@ class Red::MethodCompiler
     END
   end
   
+  def rb_dom_walk
+    add_function :rb_ary_new, :rb_ary_push, :rb_element_wrapper
+    <<-END
+      function rb_dom_walk(fromElement, path, startRelation, allBool) {
+        var el = fromElement[startRelation || path], ary = rb_ary_new();
+        while (el) {
+          if (el.nodeType == 1) {
+            if (!allBool) { return rb_element_wrapper(el); }
+            rb_ary_push(ary, rb_element_wrapper(el));
+          }
+          el = el[path];
+        }
+        return allBool ? ary : Qnil;
+      }
+    END
+  end
+  
   # complete
   def rb_viewport_dimensions
     add_function :rb_compatibility_element
