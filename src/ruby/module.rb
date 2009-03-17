@@ -224,6 +224,22 @@ class Red::MethodCompiler
     END
   end
   
+  # removed "ruby_wrapper" handling
+  def rb_mod_nesting
+    <<-END
+      function rb_mod_nesting()
+      {
+        var cbase = ruby_cref;
+        var ary = rb_ary_new();
+        while (cbase && cbase.nd_next) {
+          if (!NIL_P(cbase.nd_clss)) rb_ary_push(ary, cbase.nd_clss);
+          cbase = cbase.nd_next;
+        }
+        return ary;
+      }
+    END
+  end
+  
   # CHECK
   def rb_mod_to_s
     add_function :rb_str_new, :rb_iv_get, :rb_str_cat, :rb_str_append,

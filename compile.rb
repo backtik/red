@@ -2200,6 +2200,13 @@ class Red::MethodCompiler
       END
     end
     
+    def nesting
+      $mc.add_function :rb_define_singleton_method, :rb_mod_nesting
+      <<-END
+        rb_define_singleton_method(rb_cModule, "nesting", rb_mod_nesting, 0);
+      END
+    end
+    
     def new
       $mc.add_function :rb_class_new_instance, :proc_s_new, :rb_define_singleton_method, :rb_struct_s_def, :rb_io_s_new
       <<-END
@@ -3882,7 +3889,6 @@ class Red::MethodCompiler
         //rb_define_private_method(rb_cModule, "alias_method", rb_mod_alias_method, 2);
         //rb_define_private_method(rb_cModule, "define_method", rb_mod_define_method, -1);
 
-        //rb_define_singleton_method(rb_cModule, "nesting", rb_mod_nesting, 0);
         //rb_define_singleton_method(rb_cModule, "constants", rb_mod_s_constants, 0);
 
         //rb_define_singleton_method(ruby_top_self, "include", top_include, -1);

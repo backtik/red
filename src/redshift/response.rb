@@ -1,17 +1,5 @@
 class Red::MethodCompiler
-  # 
-  def resp_alloc
-    <<-END
-      function resp_alloc(klass) {
-        var resp = NEWOBJ();
-        OBJSETUP(resp, klass, T_DATA);
-        resp.ptr = 0;
-        return resp;
-      }
-    END
-  end
-  
-  # 
+  # complete
   def resp_text
     add_function :rb_str_new
     <<-END
@@ -21,7 +9,7 @@ class Red::MethodCompiler
     END
   end
   
-  # 
+  # complete
   def resp_xml
     add_function :rb_str_new
     <<-END
