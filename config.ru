@@ -5,9 +5,11 @@ require 'sass' rescue nil
 require 'red'
 require 'optparse'
 require 'ftools'
+require 'zlib'
 
 Object.instance_eval \
 {include Red
+include Zlib
 
 module Rack
   class Herring
@@ -33,7 +35,8 @@ module Rack
         when '.ico'
           ['', {"Content-Type" => "image/ico"}]
         when '.js'
-          [::File.read(path), {"Content-Type" => "text/js"}]
+        # [::File.read(path), {"Content-Type" => "text/js"}]
+          [rb_to_gz(path), {"Content-Type" => "text/js", "Content-Encoding" => "gzip"}]
         else
           ["", {}]
       end

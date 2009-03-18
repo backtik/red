@@ -1,5 +1,5 @@
 class Red::MethodCompiler
-  # removed a check against "sizeof(VALUE)*CHAR_BIT"
+  # removed a check against 'sizeof(VALUE)*CHAR_BIT'
   def fix_aref
     add_function :fix_coerce, :rb_big_norm
     <<-END
@@ -47,6 +47,20 @@ class Red::MethodCompiler
       function fix_coerce(x) {
         while (!FIXNUM_P(x) && (TYPE(x) != T_BIGNUM)) { x = rb_to_int(x); }
         return x;
+      }
+    END
+  end
+  
+  # modified fixdivmod to return array instead of using pointers
+  def fix_div
+    add_function :fixdivmod, :rb_num_coerce_bin
+    <<-END
+      function fix_div(x, y) {
+        if (FIXNUM_P(y)) {
+          var tmp = fixdivmod(FIX2LONG(x), FIX2LONG(y));
+          return LONG2NUM(tmp[0]);
+        }
+        return rb_num_coerce_bin(x, y);
       }
     END
   end
@@ -146,13 +160,33 @@ class Red::MethodCompiler
   
   # modified fixdivmod to return array instead of using pointers
   def fix_mod
-    add_function :fixdivmod, :rb_num_coerce_bin
+    add_function :fixdivmod, :rb_num_coerce_bin, :rb_int2inum
     <<-END
       function fix_mod(x, y) {
         if (FIXNUM_P(y)) {
           var mod = fixdivmod(FIX2LONG(x), FIX2LONG(y))[1];
           return LONG2NUM(mod);
         }
+        return rb_num_coerce_bin(x, y);
+      }
+    END
+  end
+  
+  # verbatim
+  def fix_mul
+    add_function :rb_big_mul, :rb_int2big, :rb_num_coerce_bin
+    <<-END
+      function fix_mul(x, y) {
+        if (FIXNUM_P(y)) {
+          var a = FIX2LONG(x);
+          if (a === 0) { return x; }
+          var b = FIX2LONG(y);
+          var c = a * b;
+          var r = LONG2FIX(c);
+          if ((FIX2LONG(r) != c) || ((c / a) != b)) { r = rb_big_mul(rb_int2big(a), rb_int2big(b)); }
+          return r;
+        }
+        if (TYPE(y) == T_FLOAT) { return rb_float_new(FIX2LONG(x) * y.value); }
         return rb_num_coerce_bin(x, y);
       }
     END
@@ -193,7 +227,7 @@ class Red::MethodCompiler
     add_functions :rb_scan_args, :rb_fix2str
     <<-END
       function fix_to_s(argc, argv, x) {
-        var b = rb_scan_args(argc, argv, "01")[0];
+        var b = rb_scan_args(argc, argv, '01')[0];
         var base = (argc === 0) ? 10 : NUM2INT(b);
         return rb_fix2str(x, base);
       }
@@ -224,8 +258,7 @@ class Red::MethodCompiler
     <<-END
       function fixdivmod(x, y) {
         var div;
-        var mod;
-        if (y == 0) { rb_num_zerodiv(); }
+        if (y === 0) { rb_num_zerodiv(); }
         if (y < 0) {
           if (x < 0) {
             div = -x / -y;
@@ -239,7 +272,7 @@ class Red::MethodCompiler
             div = x / y;
           }
         }
-        mod = x - div * y;
+        var mod = x - (div &= 0x7FFFFFFF) * y;
         if ((mod < 0 && y > 0) || (mod > 0 && y < 0)) {
           mod += y;
           div -= 1;

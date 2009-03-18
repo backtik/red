@@ -1,5 +1,5 @@
 class Red::MethodCompiler
-  # completely changed; incomplete (needs to handle, e.g., :"one and two")
+  # completely changed; incomplete (needs to handle, e.g., :'one and two')
   def sym_inspect
     add_function :rb_str_new, :rb_id2name
     <<-END

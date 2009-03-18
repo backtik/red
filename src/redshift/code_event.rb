@@ -6,7 +6,7 @@ class Red::MethodCompiler
       function cevent_fire(argc, argv, obj) {
         var obj_events;
         var obj_ev_type;
-        var tmp = rb_scan_args(argc, argv, "1*");
+        var tmp = rb_scan_args(argc, argv, '1*');
         var type_id = rb_to_id(tmp[1]);
         var args = tmp[2] || rb_ary_new();
         if ((obj_events = obj.code_events) && (obj_ev_type = obj_events[type_id])) {
@@ -42,7 +42,7 @@ class Red::MethodCompiler
     add_function :rb_scan_args, :rb_block_proc, :rb_to_id
     <<-END
       function cevent_upon(argc, argv, obj) {
-        var tmp = rb_scan_args(argc, argv, "11");
+        var tmp = rb_scan_args(argc, argv, '11');
         var bvar = rb_block_proc();
         bvar.permanent = (tmp[0] > 1) ? RTEST(tmp[2] || 0) : false;
         var type_id = rb_to_id(tmp[1]);

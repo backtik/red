@@ -53,37 +53,37 @@ class Red::MethodCompiler
         var param;
         var sym = function(string) { return tbl[ID2SYM(rb_intern(string))] || 0; };
         
-        if ((param = sym("url"))) {
+        if ((param = sym('url'))) {
           Check_Type(param, T_STRING);
           req.url = param.ptr;
         }
         
-        if ((param = sym("data"))) {
+        if ((param = sym('data'))) {
           Check_Type(param, T_HASH);
           req.data = rb_query_data_to_string(param.tbl, '');
         }
         
-        if ((param = sym("format"))) {
+        if ((param = sym('format'))) {
           Check_Type(param, T_STRING);
           req.format = 'format=' + param.ptr;
         }
         
-        if ((param = sym("method"))) {
+        if ((param = sym('method'))) {
           req.method = rb_id2name(rb_to_id(param)).toUpperCase();
         }
         
-        if ((param = sym("emulation")) && RTEST(param) && /^(?:DELETE|PUT)$/i.test(req.method)) {
+        if ((param = sym('emulation')) && RTEST(param) && /^(?:DELETE|PUT)$/i.test(req.method)) {
           var _method = '_method=' + req.method.toUpperCase();
           req.data = (req.data == '') ? _method : (_method + '&' + req.data);
           req.method = 'POST';
         }
         
-        if ((param = sym("encoding"))) {
+        if ((param = sym('encoding'))) {
           Check_Type(param, T_STRING);
           req.encoding = param.ptr;
         }
         
-        if ((param = sym("headers"))) {
+        if ((param = sym('headers'))) {
           Check_Type(param, T_HASH);
           var h_tbl = param.tbl;
           var headers = req.headers;
@@ -94,7 +94,7 @@ class Red::MethodCompiler
           }
         }
         
-        if ((param = sym("url_encoded")) && RTEST(param) && (req.method == 'POST')) {
+        if ((param = sym('url_encoded')) && RTEST(param) && (req.method == 'POST')) {
           var encoding = (req.encoding) ? ('; charset=' + req.encoding) : '';
           req.headers['Content-type'] = 'application/x-www-form-urlencoded' + encoding;
         }
@@ -105,11 +105,11 @@ class Red::MethodCompiler
           req.data = 0;
         }
         
-        if ((param = sym("eval_response"))) {
+        if ((param = sym('eval_response'))) {
           req.eval_response = RTEST(param);
         }
         
-        if ((param = sym("eval_scripts"))) {
+        if ((param = sym('eval_scripts'))) {
           req.eval_scripts = RTEST(param);
         }
       }
@@ -199,7 +199,7 @@ class Red::MethodCompiler
     <<-END
       function req_initialize(argc, argv, req) {
         var opts_tbl;
-        var tmp = rb_scan_args(argc, argv, "01");
+        var tmp = rb_scan_args(argc, argv, '01');
         if (tmp[0]) {
           Check_Type(tmp[1], T_HASH);
           opts_tbl = tmp[1].tbl;

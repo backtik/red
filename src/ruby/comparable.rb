@@ -1,5 +1,5 @@
 class Red::MethodCompiler
-  # CHECK
+  # verbatim
   def cmp_between
     add_function :cmp_lt, :cmp_gt
     <<-END
@@ -11,7 +11,7 @@ class Red::MethodCompiler
     END
   end
   
-  # CHECK
+  # verbatim
   def cmp_equal
     add_function :rb_rescue, :cmp_failed
     <<-END
@@ -31,54 +31,87 @@ class Red::MethodCompiler
     END
   end
   
-  # CHECK
+  # verbatim
   def cmp_ge
-    add_function :rb_funcall, :rb_cmpint, :cmperr
+    add_function :rb_funcall, :rb_cmpint, :rb_cmperr
     add_method :'<=>'
     <<-END
       function cmp_ge(x, y) {
         var c = rb_funcall(x, cmp, 1, y);
-        if (NIL_P(c)) { return cmperr(); }
+        if (NIL_P(c)) { rb_cmperr(); return Qnil; }
         return (rb_cmpint(c, x, y) >= 0) ? Qtrue : Qfalse;
       }
     END
   end
   
-  # CHECK
+  # verbatim
   def cmp_gt
-    add_function :rb_funcall, :rb_cmpint, :cmperr
+    add_function :rb_funcall, :rb_cmpint, :rb_cmperr
     add_method :'<=>'
     <<-END
       function cmp_gt(x, y) {
         var c = rb_funcall(x, cmp, 1, y);
-        if (NIL_P(c)) { return cmperr(); }
+        if (NIL_P(c)) { rb_cmperr(); return Qnil; }
         return (rb_cmpint(c, x, y) > 0) ? Qtrue : Qfalse;
       }
     END
   end
   
-  # CHECK
+  # verbatim
   def cmp_le
-    add_function :rb_funcall, :rb_cmpint, :cmperr
+    add_function :rb_funcall, :rb_cmpint, :rb_cmperr
     add_method :'<=>'
     <<-END
       function cmp_le(x, y) {
         var c = rb_funcall(x, cmp, 1, y);
-        if (NIL_P(c)) { return cmperr(); }
+        if (NIL_P(c)) { rb_cmperr(); return Qnil; }
         return (rb_cmpint(c, x, y) <= 0) ? Qtrue : Qfalse;
       }
     END
   end
   
-  # CHECK
+  # verbatim
   def cmp_lt
-    add_function :rb_funcall, :rb_cmpint, :cmperr
+    add_function :rb_funcall, :rb_cmpint, :rb_cmperr
     add_method :'<=>'
     <<-END
       function cmp_lt(x, y) {
         var c = rb_funcall(x, cmp, 1, y);
-        if (NIL_P(c)) { return cmperr(); }
+        if (NIL_P(c)) { rb_cmperr(); return Qnil; }
         return (rb_cmpint(c, x, y) < 0) ? Qtrue : Qfalse;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_cmperr
+    add_function :rb_inspect, :rb_obj_classname, :rb_raise, :rb_obj_classname, :rb_string_value
+    <<-END
+      function rb_cmperr(x, y) {
+        var classname;
+        if (SPECIAL_CONST_P(y)) {
+          y = rb_inspect(y);
+          classname = rb_string_value(y).ptr;
+        } else {
+          classname = rb_obj_classname(y);
+        }
+        rb_raise(rb_eArgError, "comparison of %s with %s failed", rb_obj_classname(x), classname);
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_cmpint
+    add_function :rb_cmperr, :rb_funcall
+    add_method :<, :>
+    <<-END
+      function rb_cmpint(val, a, b) {
+        if (NIL_P(val)) { rb_cmperr(a, b); }
+        if (FIXNUM_P(val)) { return FIX2INT(val); }
+        if (TYPE(val) == T_BIGNUM) { return (val.sign) ? 1 : -1; }
+        if (RTEST(rb_funcall(val, '>', 1, INT2FIX(0)))) { return 1; }
+        if (RTEST(rb_funcall(val, '<', 1, INT2FIX(0)))) { return -1; }
+        return 0;
       }
     END
   end

@@ -4,7 +4,7 @@ class Red::MethodCompiler
     add_functions :rb_str_new
     <<-END
       function false_to_s(obj) {
-        return rb_str_new('false');
+        return rb_str_new("false");
       }
     END
   end

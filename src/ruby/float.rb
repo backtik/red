@@ -21,11 +21,55 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def flo_cmp
+    add_function :rb_big2dbl, :rb_num_coerce_cmp, :rb_dbl_cmp
+    <<-END
+      function flo_cmp(x, y) {
+        var b;
+        var a = x.value;
+        switch (TYPE(y)) {
+          case T_FIXNUM:
+            b = FIX2LONG(y);
+            break;
+          case T_BIGNUM:
+            b = rb_big2dbl(y);
+            break;
+          case T_FLOAT:
+            b = y.value;
+            break;
+          default:
+            return rb_num_coerce_cmp(x, y);
+        }
+        return rb_dbl_cmp(a, b);
+      }
+    END
+  end
+  
+  # verbatim
   def flo_coerce
     add_function :rb_assoc_new, :rb_Float
     <<-END
       function flo_coerce(x, y) {
         return rb_assoc_new(rb_Float(y), x);
+      }
+    END
+  end
+  
+  # verbatim
+  def flo_div
+    add_function :rb_float_new, :rb_big2dbl, :rb_num_coerce_bin
+    <<-END
+      function flo_div(x, y) {
+        switch (TYPE(y)) {
+          case T_FIXNUM:
+            return rb_float_new(x.value / FIX2LONG(y));
+          case T_BIGNUM:
+            return rb_float_new(x.value / rb_big2dbl(y));
+          case T_FLOAT:
+            return rb_float_new(x.value / y.value);
+          default:
+            return rb_num_coerce_bin(x, y);
+        }
       }
     END
   end
@@ -160,7 +204,26 @@ class Red::MethodCompiler
     END
   end
   
-  # modified "flodivmod" to return array instead of using pointers
+  # verbatim
+  def flo_minus
+    add_function :rb_float_new, :rb_num_coerce_bin, :rb_big2dbl
+    <<-END
+      function flo_minus(x, y) {
+        switch (TYPE(y)) {
+          case T_FIXNUM:
+            return rb_float_new(x.value - FIX2LONG(y));
+          case T_BIGNUM:
+            return rb_float_new(x.value - rb_big2dbl(y));
+          case T_FLOAT:
+            return rb_float_new(x.value - y.value);
+          default:
+            return rb_num_coerce_bin(x, y);
+        }
+      }
+    END
+  end
+  
+  # modified 'flodivmod' to return array instead of using pointers
   def flo_mod
     add_function :rb_big2dbl, :rb_num_coerce_bin, :flodivmod, :rb_float_new
     <<-END
@@ -181,6 +244,25 @@ class Red::MethodCompiler
         }
         var mod = flodivmod(x.value, fy)[1];
         return rb_float_new(mod);
+      }
+    END
+  end
+  
+  # verbatim
+  def flo_mul
+    add_function :rb_float_new, :rb_num_coerce_bin, :rb_big2dbl
+    <<-END
+      function flo_mul(x, y) {
+        switch (TYPE(y)) {
+          case T_FIXNUM:
+            return rb_float_new(x.value * FIX2LONG(y));
+          case T_BIGNUM:
+            return rb_float_new(x.value * rb_big2dbl(y));
+          case T_FLOAT:
+            return rb_float_new(x.value * y.value);
+          default:
+            return rb_num_coerce_bin(x, y);
+        }
       }
     END
   end
@@ -234,7 +316,7 @@ class Red::MethodCompiler
         }
         p = e;
         while ((buf[p - 1] == '0') && ISDIGIT(buf[p - 2])) { p--; }
-        buf[p] = buf[e]; // was "memmove(p, e, strlen(e) + 1)"
+        buf[p] = buf[e]; // was 'memmove(p, e, strlen(e) + 1)'
         return rb_str_new(buf);
       }
     END
@@ -289,7 +371,7 @@ class Red::MethodCompiler
   def isnan
     <<-END
       function isnan(d) {
-        return String(d) === "NaN";
+        return String(d) === 'NaN';
       }
     END
   end

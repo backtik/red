@@ -8,26 +8,22 @@ function FL_UNSET(x,f) { if (FL_ABLE(x)) { x.basic.flags &= ~f; } }
 function OBJ_INFECT(x,s) { if (FL_ABLE(x) && FL_ABLE(s)) { x.basic.flags |= s.basic.flags & FL_TAINT; } }
 
 function TYPE(obj) {
-  if (FIXNUM_P(obj)) { return T_FIXNUM; }
-  if (obj == Qnil)   { return T_NIL;    }
-  if (obj == Qfalse) { return T_FALSE;  }
-  if (obj == Qtrue)  { return T_TRUE;   }
-  if (obj == Qundef) { return T_UNDEF;  }
-  if (SYMBOL_P(obj)) { return T_SYMBOL; }
+  if (FIXNUM_P(obj))  { return T_FIXNUM; }
+  if (obj == Qnil)    { return T_NIL;    }
+  if (obj === Qfalse) { return T_FALSE;  }
+  if (obj == Qtrue)   { return T_TRUE;   }
+  if (obj == Qundef)  { return T_UNDEF;  }
+  if (SYMBOL_P(obj))  { return T_SYMBOL; }
   return BUILTIN_TYPE(obj);
 }
 
 function CLASS_OF(obj) {
-  if (FIXNUM_P(obj)) { return rb_cFixnum; }
-  if (obj == Qnil)   { return rb_cNilClass; }
-  if (obj == Qfalse) { return rb_cFalseClass; }
-  if (obj == Qtrue)  { return rb_cTrueClass; }
-  if (SYMBOL_P(obj)) { return rb_cSymbol; }
+  if (FIXNUM_P(obj))  { return rb_cFixnum; }
+  if (obj == Qnil)    { return rb_cNilClass; }
+  if (obj === Qfalse) { return rb_cFalseClass; }
+  if (obj == Qtrue)   { return rb_cTrueClass; }
+  if (SYMBOL_P(obj))  { return rb_cSymbol; }
   return obj.basic.klass;
-}
-
-function rb_safe_level() {
-  return ruby_safe_level;
 }
 
 function EXCL(r)       { return RTEST(rb_ivar_get(r, id_excl)); }

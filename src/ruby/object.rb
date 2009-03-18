@@ -7,7 +7,7 @@ class Red::MethodCompiler
         var m = rb_intern(method);
         if (!rb_respond_to(val, m)) {
           if (raise) {
-            rb_raise(rb_eTypeError, "can't convert %s into %s", NIL_P(val) ? "nil" : val == Qtrue ? "true" : val == Qfalse ? "false" : rb_obj_classname(val), tname);
+            rb_raise(rb_eTypeError, "can't convert %s into %s", NIL_P(val) ? "nil" : val == Qtrue ? "true" : val === Qfalse ? "false" : rb_obj_classname(val), tname);
           } else {
             return Qnil;
           }
@@ -17,22 +17,25 @@ class Red::MethodCompiler
     END
   end
   
-  # removed st_free_table, removed bug warning
+  # removed rb_gc_copy_finalizer, removed bug warning
   def init_copy
-    add_function :rb_raise, :rb_funcall, :rb_copy_generic_ivar
+    add_function :rb_raise, :rb_funcall, :rb_copy_generic_ivar, :st_free_table
     add_method :initialize_copy
     <<-END
       function init_copy(dest, obj) {
-      //if (OBJ_FROZEN(dest)) { rb_raise(rb_eTypeError, "[bug] frozen object (%s) allocated", rb_obj_classname(dest)); }
-        dest.flags &= ~(T_MASK|FL_EXIVAR);
-        dest.flags |= obj.basic.flags & (T_MASK|FL_EXIVAR|FL_TAINT);
+      //if (OBJ_FROZEN(dest)) { rb_raise(rb_eTypeError, '[bug] frozen object (%s) allocated', rb_obj_classname(dest)); }
+        dest.basic.flags &= ~(T_MASK|FL_EXIVAR);
+        dest.basic.flags |= (obj.basic.flags & (T_MASK|FL_EXIVAR|FL_TAINT));
         if (FL_TEST(obj, FL_EXIVAR)) { rb_copy_generic_ivar(dest, obj); }
       //rb_gc_copy_finalizer(dest, obj);
         switch (TYPE(obj)) {
           case T_OBJECT:
           case T_CLASS:
           case T_MODULE:
-            if (dest.iv_tbl) { dest.iv_tbl = 0; } // removed st_free_table(ROBJECT(dest)->iv_tbl);
+            if (dest.iv_tbl) {
+              st_free_table(dest.iv_tbl);
+              dest.iv_tbl = 0;
+            }
             if (obj.iv_tbl) { dest.iv_tbl = st_copy(obj.iv_tbl); }
         }
         rb_funcall(dest, id_init_copy, 1, obj);
@@ -45,7 +48,7 @@ class Red::MethodCompiler
     <<-END
       function obj_inspect_i(id, value, str) {
         /* need not to show internal data */
-        if (CLASS_OF(value) == 0) { return ST_CONTINUE; }
+        if (CLASS_OF(value) === 0) { return ST_CONTINUE; }
         if (!rb_is_instance_id(id)) { return ST_CONTINUE; }
         if (str.ptr[0] == '-') { /* first element */
           str.ptr = '#' + str.ptr + ' ';
@@ -61,7 +64,7 @@ class Red::MethodCompiler
     END
   end
   
-  # modified string handling, renamed from "inspect_i"
+  # modified string handling, renamed obj_inspect_i from 'inspect_i'
   def inspect_obj
     add_function :st_foreach_safe, :obj_inspect_i
     <<-END
@@ -89,7 +92,7 @@ class Red::MethodCompiler
     add_function :rb_method_boundp, :rb_scan_args, :rb_to_id
     <<-END
       function obj_respond_to(argc, argv, obj) {
-        var tmp = rb_scan_args(argc, argv, "11");
+        var tmp = rb_scan_args(argc, argv, '11');
         var mid = tmp[1];
         var priv = tmp[2];
         var id = rb_to_id(mid);
@@ -253,7 +256,7 @@ class Red::MethodCompiler
             rb_raise(rb_eTypeError, "can't convert nil into Float");
             break;
           default:
-            var f = rb_convert_type(val, T_FLOAT, "Float", "to_f");
+            var f = rb_convert_type(val, T_FLOAT, 'Float', 'to_f');
             if (isnan(f.value)) { rb_raise(rb_eArgError, "invalid value for Float()"); }
             return f;
         }
@@ -293,13 +296,13 @@ class Red::MethodCompiler
         ruby_current_node = cnode;
         var n = 0;
         var args = [];
-        args[n++] = rb_funcall(rb_const_get(exc, rb_intern("message")), rb_intern("!"), 3, rb_str_new(format), obj, argv[0]); // changed rb_str_new2 to rb_str_new
+        args[n++] = rb_funcall(rb_const_get(exc, rb_intern('message')), rb_intern('!'), 3, rb_str_new(format), obj, argv[0]); // changed rb_str_new2 to rb_str_new
         args[n++] = argv[0];
         if (exc == rb_eNoMethodError) {
           args[n++] = rb_ary_new4(argc - 1, argv.slice(1));
         }
         exc = rb_class_new_instance(n, args, exc);
-        ruby_frame = ruby_frame.prev; /* pop frame for "method_missing" */
+        ruby_frame = ruby_frame.prev; /* pop frame for 'method_missing' */
         rb_exc_raise(exc);
         return Qnil; /* not reached */
       }
@@ -311,7 +314,7 @@ class Red::MethodCompiler
     add_function :rb_raise, :rb_funcall, :rb_obj_class, :rb_class_real
     <<-END
       function rb_obj_alloc(klass) {
-        if (klass.superclass == 0) { rb_raise(rb_eTypeError, "can't instantiate uninitialized class"); }
+        if (klass.superclass === 0) { rb_raise(rb_eTypeError, "can't instantiate uninitialized class"); }
         if (FL_TEST(klass, FL_SINGLETON)) { rb_raise(rb_eTypeError, "can't create instance of virtual class"); }
         var obj = rb_funcall(klass, ID_ALLOCATOR, 0, 0);
         if (rb_obj_class(obj) != rb_class_real(klass)) { rb_raise(rb_eTypeError, "wrong instance allocation"); }
@@ -377,9 +380,8 @@ class Red::MethodCompiler
                  :rb_obj_alloc, :rb_obj_class, :init_copy
     <<-END
       function rb_obj_dup(obj) {
-        var dup;
         if (rb_special_const_p(obj)) { rb_raise(rb_eTypeError, "can't dup %s", rb_obj_classname(obj)); }
-        dup = rb_obj_alloc(rb_obj_class(obj));
+        var dup = rb_obj_alloc(rb_obj_class(obj));
         init_copy(dup, obj);
         return dup;
       }
@@ -401,7 +403,7 @@ class Red::MethodCompiler
     <<-END
       function rb_obj_freeze(obj) {
         if (!OBJ_FROZEN(obj)) {
-          if ((rb_safe_level() >= 4) && !OBJ_TAINTED(obj)) { rb_raise(rb_eSecurityError, "Insecure: can't freeze object"); }
+          if ((ruby_safe_level >= 4) && !OBJ_TAINTED(obj)) { rb_raise(rb_eSecurityError, "Insecure: can't freeze object"); }
           OBJ_FREEZE(obj);
         }
         return obj;
@@ -413,7 +415,7 @@ class Red::MethodCompiler
   def rb_obj_id
     <<-END
       function rb_obj_id(obj) {
-        if (TYPE(obj) == T_SYMBOL) { return LONG2FIX(SYM2ID(obj) * 10 + 8); } // was "(SYM2ID(obj) * sizeof(RVALUE) + (4 << 2)) | FIXNUM_FLAG"
+        if (TYPE(obj) == T_SYMBOL) { return LONG2FIX(SYM2ID(obj) * 10 + 8); } // was '(SYM2ID(obj) * sizeof(RVALUE) + (4 << 2)) | FIXNUM_FLAG'
         if (SPECIAL_CONST_P(obj)) { return LONG2NUM(obj); }
         return obj.rvalue | FIXNUM_FLAG;
       }
@@ -451,7 +453,7 @@ class Red::MethodCompiler
           str.ptr = "-<" + c + ":0x" + obj.rvalue.toString(16);
           return rb_protect_inspect(inspect_obj, obj, str);
         }
-        return rb_funcall(obj, rb_intern("to_s"), 0, 0);
+        return rb_funcall(obj, rb_intern('to_s'), 0, 0);
       }
     END
   end
@@ -541,7 +543,7 @@ class Red::MethodCompiler
     add_method :to_int
     <<-END
       function rb_to_int(val) {
-        return rb_to_integer(val, "to_int");
+        return rb_to_integer(val, 'to_int');
       }
     END
   end
@@ -551,9 +553,18 @@ class Red::MethodCompiler
     add_function :convert_type, :rb_obj_is_kind_of, :rb_raise, :rb_obj_classname
     <<-END
       function rb_to_integer(val, method) {
-        var v = convert_type(val, "Integer", method, Qtrue);
+        var v = convert_type(val, 'Integer', method, Qtrue);
         if (!rb_obj_is_kind_of(v, rb_cInteger)) { rb_raise(rb_eTypeError, "%s#%s should return Integer", rb_obj_classname(val), method); }
         return v;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_true
+    <<-END
+      function rb_true() {
+        return Qtrue;
       }
     END
   end

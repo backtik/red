@@ -28,11 +28,21 @@ class Red::MethodCompiler
     <<-END
       function do_coerce(x, y, err) {
         var ary = rb_rescue(coerce_body, [x, y], err ? coerce_rescue : 0, [x, y]);
-        if ((TYPE(ary) != T_ARRAY) || ary.ptr.length != 2) {
+        if ((TYPE(ary) != T_ARRAY) || (ary.ptr.length != 2)) {
           if (err) { rb_raise(rb_eTypeError, "coerce must return [x, y]"); }
           return [Qfalse, x, y];
         }
         return [Qtrue, ary.ptr[0], ary.ptr[1]];
+      }
+    END
+  end
+  
+  # verbatim
+  def num_cmp
+    <<-END
+      function num_cmp(x, y) {
+        if (x == y) { return INT2FIX(0); }
+        return Qnil;
       }
     END
   end
@@ -79,7 +89,7 @@ class Red::MethodCompiler
     add_function :rb_raise, :rb_id2name, :rb_to_id, :rb_obj_classname
     <<-END
       function num_sadded(x, name) {
-        ruby_frame = ruby_frame.prev; /* pop frame for "singleton_method_added" */
+        ruby_frame = ruby_frame.prev; /* pop frame for 'singleton_method_added' */
         /* Numerics should be values; singleton_methods should not be added to them */
         rb_raise(rb_eTypeError, "can't define singleton method '%s' for %s", rb_id2name(rb_to_id(name)), rb_obj_classname(x));
         return Qnil; /* not reached */
@@ -98,13 +108,82 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def rb_dbl_cmp
+    add_function :isnan
+    <<-END
+      function rb_dbl_cmp(a, b) {
+        if (isnan(a) || isnan(b)) { return Qnil; }
+        if (a == b) { return INT2FIX(0); }
+        if (a > b) { return INT2FIX(1); }
+        if (a < b) { return INT2FIX(-1); }
+        return Qnil;
+      }
+    END
+  end
+  
+  # unwound 'goto' structure
+  def rb_num2long
+    #add_function :rb_raise, :rb_big2long, :rb_to_int
+    <<-END
+      function rb_num2long(val) {
+        do { // added to handle 'goto again'
+          var goto_again = 0;
+          if (NIL_P(val)) { rb_raise(rb_eTypeError, "no implicit conversion from nil to integer"); }
+          if (FIXNUM_P(val)) { return FIX2LONG(val); }
+          switch (TYPE(val)) {
+            case T_FLOAT:
+              if ((val.value <= LONG_MAX) && (val.value >= LONG_MIN)) {
+                return val.value;
+              } else {
+                rb_raise(rb_eRangeError, "float out of range of integer");
+              }
+            case T_BIGNUM:
+              return rb_big2long(val);
+            default:
+              val = rb_to_int(val);
+              goto_again = 1;
+          }
+        } while (goto_again);
+      }
+    END
+  end
+  
   # modified do_coerce to return array instead of using pointers
   def rb_num_coerce_bin
     add_function :rb_funcall, :do_coerce
     <<-END
       function rb_num_coerce_bin(x, y) {
         var tmp = do_coerce(x, y, Qtrue);
-        return rb_funcall(tmp[1], ruby_frame.orig_func, tmp[2], y);
+        return rb_funcall(tmp[1], ruby_frame.orig_func, 1, tmp[2]);
+      }
+    END
+  end
+  
+  # modified do_coerce to return array instead of using pointers
+  def rb_num_coerce_cmp
+    add_function :do_coerce, :rb_funcall
+    <<-END
+      function rb_num_coerce_cmp(x, y) {
+        var tmp = do_coerce(x, y, Qfalse);
+        if (tmp[0]) { return rb_funcall(tmp[1], ruby_frame.orig_func, 1, tmp[2]); }
+        return Qnil;
+      }
+    END
+  end
+  
+  # modified do_coerce to return array instead of using pointers
+  def rb_num_coerce_relop
+    add_function :do_coerce, :rb_funcall, :rb_cmperr
+    <<-END
+      function rb_num_coerce_relop(x, y) {
+        var c;
+        var tmp = do_coerce(x, y, Qfalse);
+        if (!tmp[0] || NIL_P(c = rb_funcall(tmp[1], ruby_frame.orig_func, 1, tmp[2]))) {
+          rb_cmperr(x, y);
+          return Qnil; /* not reached */
+        }
+        return c;
       }
     END
   end

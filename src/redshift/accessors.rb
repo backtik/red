@@ -15,7 +15,7 @@ class Red::MethodCompiler
     add_function :rb_scan_args, :rb_add_element_class, :rb_id2name, :rb_to_id
     <<-END
       function elem_add_classes(argc, argv, elem) {
-        if ((tmp = rb_scan_args(argc, argv, "*"))[0]) {
+        if ((tmp = rb_scan_args(argc, argv, '*'))[0]) {
           var element = elem.ptr;
           var classes = tmp[1].ptr;
           for (var i = 0, l = classes.length; i < l; ++i) {
@@ -109,7 +109,7 @@ class Red::MethodCompiler
     add_function :rb_camelize_name, :rb_str_new
     <<-END
       function elem_get_style(elem, name) {
-        return typeof(retval = elem.ptr.style[rb_camelize_name(name)]) == "undefined" ? Qnil : rb_str_new(retval);
+        return typeof(retval = elem.ptr.style[rb_camelize_name(name)]) == 'undefined' ? Qnil : rb_str_new(retval);
       }
     END
   end
@@ -186,7 +186,7 @@ class Red::MethodCompiler
     add_function :rb_remove_element_class, :rb_scan_args, :rb_to_id, :rb_id2name
     <<-END
       function elem_remove_classes(argc, argv, elem) {
-        if ((tmp = rb_scan_args(argc, argv, "*"))[0]) {
+        if ((tmp = rb_scan_args(argc, argv, '*'))[0]) {
           var element = elem.ptr;
           var classes = tmp[1].ptr;
           for (var i = 0, l = classes.length; i < l; ++i) {
@@ -214,7 +214,7 @@ class Red::MethodCompiler
     add_function :rb_id2name, :rb_to_id, :rb_remove_element_property, :rb_scan_args
     <<-END
       function elem_remove_properties(argc, argv, elem) {
-        if ((tmp = rb_scan_args(argc, argv, "*"))[0]) {
+        if ((tmp = rb_scan_args(argc, argv, '*'))[0]) {
           var element = elem.ptr;
           var properties = tmp[1].ptr;
           for (var i = 0, l = properties.length; i < l; ++i) {
@@ -242,7 +242,7 @@ class Red::MethodCompiler
     add_function :rb_camelize_name, :rb_scan_args
     <<-END
       function elem_remove_styles(argc, argv, elem) {
-        if ((tmp = rb_scan_args(argc, argv, "*"))[0]) {
+        if ((tmp = rb_scan_args(argc, argv, '*'))[0]) {
           var element = elem.ptr;
           var styles = tmp[1].ptr;
           for (var i = 0, l = styles.length; i < l; ++i) {
@@ -260,9 +260,9 @@ class Red::MethodCompiler
     add_method :to_int
     <<-END
       function elem_set_opacity(argc, argv, elem) {
-        var tmp = rb_scan_args(argc, argv, "11");
+        var tmp = rb_scan_args(argc, argv, '11');
         var element = elem.ptr;
-        var percent = FIX2LONG(rb_funcall(tmp[1], rb_intern("to_int"), 0));
+        var percent = FIX2LONG(rb_funcall(tmp[1], rb_intern('to_int'), 0));
         if ((tmp[0] > 1) && !RTEST(tmp[2])) {
           if (percent === 0) {
             if (element.style.visibility != 'hidden') { element.style.visibility = 'hidden'; }
@@ -460,7 +460,7 @@ class Red::MethodCompiler
   def rb_remove_element_class
     <<-END
       function rb_remove_element_class(element, classname) {
-        var rxp = new(RegExp)("(^|\\\\s)" + classname + "(?:\\\\s|$)");
+        var rxp = new(RegExp)('(^|\\\\s)' + classname + '(?:\\\\s|$)');
         element.className = element.className.replace(rxp,'$1');
       }
     END
@@ -502,7 +502,7 @@ class Red::MethodCompiler
     add_method :to_s
     <<-END
       function rb_set_element_property(element, attribute, val) {
-        var string_value = rb_funcall(val, rb_intern("to_s"), 0).ptr;
+        var string_value = rb_funcall(val, rb_intern('to_s'), 0).ptr;
         var bool = rb_boolean_property(attribute);
         var key = { 'class':'className', 'for':'htmlFor' }[attribute] || bool;
         if (key) {
@@ -521,8 +521,8 @@ class Red::MethodCompiler
     <<-END
       function rb_set_element_style(element, attribute, val) {
         if (attribute == 'float') { attribute = (ruby_engine_name == 'trident') ? 'styleFloat' : 'cssFloat'; }
-        if (attribute == 'opacity') { return rb_set_element_opacity(element, FIX2LONG(rb_funcall(val, rb_intern("to_int"), 0))); }
-        var string_value = rb_funcall(val, rb_intern("to_s"), 0).ptr;
+        if (attribute == 'opacity') { return rb_set_element_opacity(element, FIX2LONG(rb_funcall(val, rb_intern('to_int'), 0))); }
+        var string_value = rb_funcall(val, rb_intern('to_s'), 0).ptr;
         element.style[attribute] = string_value;
       }
     END

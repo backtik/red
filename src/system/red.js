@@ -215,7 +215,7 @@ function r(line,type,a,b,c) {
       return NEW_ZARRAY();
     
     default:
-      console.log('unimplemented node type ' + type + ' in ' + r)
+      console.log('unimplemented node type ' + type + ' in ' + r);
   }
 }
 
@@ -266,14 +266,16 @@ function red_init_bullshit() {
   ruby_current_node = 0;
   ruby_dyna_vars = 0;
   ruby_running = 0;
-  generic_iv_tbl = {};
   ruby_safe_level = 0;
+  ruby_digitmap = "0123456789abcdefghijklmnopqrstuvwxyz";
   last_value = 3600000;
   frame_unique = 1;
   lvtbl = {};
   inspect_tbl = Qnil;
+  recursive_hash = Qnil;
   prot_tag = { prev: 0, iter: 0 };
   ruby_errinfo = Qnil;
+  lineno = INT2FIX(0);
   ruby_block = 0;
   block_unique = 1;
   cache = {};
@@ -373,5 +375,5 @@ function red_init_bullshit() {
     536870912 + 11,
     1073741824 + 85,
     0
-  ]
+  ];
 }

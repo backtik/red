@@ -11,7 +11,7 @@ class Red::MethodCompiler
         tmp = st_lookup(klass.iv_tbl, classpath, path);
         path = tmp[1];
         if (!tmp[0]) {
-          var classid = rb_intern("__classid__");
+          var classid = rb_intern('__classid__');
           tmp = st_lookup(klass.iv_tbl, classid, path);
           path = tmp[1];
           if (!tmp[0]) { return find_class_path(klass); }
@@ -31,7 +31,7 @@ class Red::MethodCompiler
     add_method :const_missing
     <<-END
      function const_missing(klass, id) {
-        return rb_funcall(klass, rb_intern("const_missing"), 1, ID2SYM(id));
+        return rb_funcall(klass, rb_intern('const_missing'), 1, ID2SYM(id));
       }
     END
   end
@@ -65,7 +65,7 @@ class Red::MethodCompiler
             if (!value.iv_tbl) {
               return ST_CONTINUE;
             } else {
-              var arg;
+              var arg = {};
               var list = res;
               while (list) {
                 if (list.track == value) { return ST_CONTINUE; }
@@ -140,6 +140,16 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def global_id
+    add_function :rb_intern
+    <<-END
+      function global_id(name) {
+        return rb_intern((name[0] == '$') ? name : '$' + name);
+      }
+    END
+  end
+  
+  # verbatim
   def ivar_get
     add_functions :rb_special_const_p, :generic_ivar_get, :st_lookup
     <<-END
@@ -160,14 +170,14 @@ class Red::MethodCompiler
     END
   end
   
-  # removed "autoload" call
+  # removed 'autoload' call
   def mod_av_set
     add_functions :rb_raise, :rb_error_frozen, :st_init_numtable, :st_insert
     <<-END
       function mod_av_set(klass, id, val, isconst) {
-        if (!OBJ_TAINTED(klass) && rb_safe_level() >= 4) { rb_raise(rb_eSecurityError, "Insecure: can't set %s", isconst ? "constant" : "class variable"); }
+        if (!OBJ_TAINTED(klass) && ruby_safe_level >= 4) { rb_raise(rb_eSecurityError, "Insecure: can't set %s", isconst ? "constant" : "class variable"); }
         if (OBJ_FROZEN(klass)) { rb_error_frozen((BUILTIN_TYPE(klass) == T_MODULE) ? "module" : "class"); }
-        if (!klass.iv_tbl) { klass.iv_tbl = st_init_numtable(); } // removed "autoload" call
+        if (!klass.iv_tbl) { klass.iv_tbl = st_init_numtable(); } // removed 'autoload' call
         st_insert(klass.iv_tbl, id, val);
       }
     END
@@ -236,20 +246,20 @@ class Red::MethodCompiler
     END
   end
   
-  # removed "autoload" call, unwound "goto" architecture
+  # removed 'autoload' call, unwound 'goto' architecture
   def rb_const_defined_0
     add_function :st_lookup
     <<-END
       function rb_const_defined_0(klass, id, exclude, recurse) {
         var tmp = klass;
         var mod_retry = 0;
-        do { // added to handle "goto"
+        do { // added to handle 'goto'
           while (tmp) {
-            if (tmp.iv_tbl && (st_lookup(tmp.iv_tbl, id))[0]) { return Qtrue; } // removed "autoload" call
+            if (tmp.iv_tbl && (st_lookup(tmp.iv_tbl, id))[0]) { return Qtrue; } // removed 'autoload' call
             if (!recurse && (klass != rb_cObject)) { break; }
             tmp = tmp.superclass;
           }
-        } while (!exclude && !mod_retry && (BUILTIN_TYPE(klass) == T_MODULE) && (tmp = rb_cObject) && (mod_retry = 1)); // added to handle "goto"
+        } while (!exclude && !mod_retry && (BUILTIN_TYPE(klass) == T_MODULE) && (tmp = rb_cObject) && (mod_retry = 1)); // added to handle 'goto'
         return Qfalse;
       }
     END
@@ -275,7 +285,7 @@ class Red::MethodCompiler
     END
   end
   
-  # removed "autoload" call, unwound "goto" architecture
+  # removed 'autoload' call, unwound 'goto' architecture
   def rb_const_get_0
     add_functions :const_missing
     <<-END
@@ -285,7 +295,7 @@ class Red::MethodCompiler
         var mod_retry = 0;
         do {
           while (tmp) {
-            while (tmp.iv_tbl && (value = st_lookup(tmp.iv_tbl, id))[0]) { return value[1]; } // removed "autoload" call
+            while (tmp.iv_tbl && (value = st_lookup(tmp.iv_tbl, id))[0]) { return value[1]; } // removed 'autoload' call
             if (!recurse && (klass != rb_cObject)) { break; }
             tmp = tmp.superclass;
           }
@@ -352,7 +362,7 @@ class Red::MethodCompiler
         while (tmp) {
           if (tmp.iv_tbl && st_lookup(tmp.iv_tbl, id)[0]) {
             if (OBJ_FROZEN(tmp)) { rb_error_frozen("class/module"); }
-            if (!OBJ_TAINTED(tmp) && rb_safe_level() >= 4) { rb_raise(rb_eSecurityError, "Insecure: can't modify class variable"); }
+            if (!OBJ_TAINTED(tmp) && ruby_safe_level >= 4) { rb_raise(rb_eSecurityError, "Insecure: can't modify class variable"); }
             // removed warnings
             st_insert(tmp.iv_tbl, id, val);
             return;
@@ -392,6 +402,34 @@ class Red::MethodCompiler
     <<-END
       function rb_dvar_push(id, value) {
         ruby_dyna_vars = new_dvar(id, value, ruby_dyna_vars);
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_global_entry
+    add_function :undef_getter, :undef_setter, :st_lookup, :st_add_direct
+    <<-END
+      function rb_global_entry(id) {
+        var entry;
+        var tmp = st_lookup(rb_global_tbl, id, 0);
+        if (tmp[0]) {
+          entry = tmp[1];
+        } else {
+          var variable = {};
+          entry = {};
+          entry.id = id;
+          entry.variable = variable;
+          variable.counter = 1;
+          variable.data = 0;
+          variable.getter = undef_getter;
+          variable.setter = undef_setter;
+        //variable.marker = undef_marker;
+          variable.block_trace = 0;
+          variable.trace = 0;
+          st_add_direct(rb_global_tbl, id, entry);
+        }
+        return entry;
       }
     END
   end
@@ -451,7 +489,7 @@ class Red::MethodCompiler
     add_functions :rb_raise, :rb_error_frozen, :generic_ivar_set, :st_init_numtable, :st_insert
     <<-END
       function rb_ivar_set(obj, id, val) {
-        if (!OBJ_TAINTED(obj) && rb_safe_level() >= 4) { rb_raise(rb_eSecurityError, "Insecure: can't modify instance variable"); }
+        if (!OBJ_TAINTED(obj) && ruby_safe_level >= 4) { rb_raise(rb_eSecurityError, "Insecure: can't modify instance variable"); }
         if (OBJ_FROZEN(obj)) { rb_error_frozen("object"); }
         switch (TYPE(obj)) {
           case T_OBJECT:
@@ -474,8 +512,32 @@ class Red::MethodCompiler
     add_function :uninitialized_constant, :rb_to_id
     <<-END
       function rb_mod_const_missing(klass, name) {
-        ruby_frame = ruby_frame.prev; /* pop frame for "const_missing" */
+        ruby_frame = ruby_frame.prev; /* pop frame for 'const_missing' */
         uninitialized_constant(klass, rb_to_id(name));
+        return Qnil; /* not reached */
+      }
+    END
+  end
+  
+  def rb_mod_remove_const
+    add_function :rb_to_id, :rb_is_const_id, :rb_id2name, :rb_raise,
+                 :rb_error_frozen, :st_delete, :rb_const_defined_at,
+                 :rb_name_error, :rb_class2name
+    <<-END
+      function rb_mod_remove_const(mod, name) {
+        var id = rb_to_id(name);
+        if (!rb_is_const_id(id)) { rb_name_error(id, "'%s' is not allowed as a constant name", rb_id2name(id)); }
+        if (!OBJ_TAINTED(mod) && (ruby_safe_level >= 4)) { rb_raise(rb_eSecurityError, "Insecure: can't remove constant"); }
+        if (OBJ_FROZEN(mod)) { rb_error_frozen("class/module"); }
+        var tmp = st_delete(mod.iv_tbl);
+        id = tmp[1];
+        val = tmp[2];
+        if (mod.iv_tbl && tmp[0]) {
+          if (val == Qundef) { val = Qnil; }
+          return val;
+        }
+        if (rb_const_defined_at(mod, id)) { rb_name_error(id, "cannot remove %s::%s", rb_class2name(mod), rb_id2name(id)); }
+        rb_name_error(id, "constant %s::%s not defined", rb_class2name(mod), rb_id2name(id));
         return Qnil; /* not reached */
       }
     END
@@ -517,6 +579,29 @@ class Red::MethodCompiler
     END
   end
   
+  # removed warning
+  def undef_getter
+    <<-END
+      function undef_getter(id) {
+        return Qnil;
+      }
+    END
+  end
+  
+  # modified to return variable instead of using pointer
+  def undef_setter
+    add_function :val_getter, :val_setter
+    <<-END
+      function undef_setter(val, id, data, variable) {
+        variable.getter = val_getter;
+        variable.setter = val_setter;
+      //variable.marker = val_marker;
+        variable.data = val;
+        return variable;
+      }
+    END
+  end
+  
   # verbatim
   def uninitialized_constant
     add_function :rb_name_error, :rb_class2name, :rb_id2name
@@ -527,6 +612,43 @@ class Red::MethodCompiler
         } else {
           rb_name_error(id, "uninitialized constant %s", rb_id2name(id));
         }
+      }
+    END
+  end
+  
+  # verbatim
+  def val_getter
+    <<-END
+      function val_getter(id, val) {
+        return val;
+      }
+    END
+  end
+  
+  # modified to return variable instead of using pointer
+  def val_setter
+    <<-END
+      function val_setter(val, id, data, variable) {
+        variable.data = val;
+        return variable;
+      }
+    END
+  end
+  
+  # verbatim
+  def var_getter
+    <<-END
+      function var_getter(id, variable) {
+        return variable || Qnil;
+      }
+    END
+  end
+  
+  # modified to return variable instead of using pointer
+  def var_setter
+    <<-END
+      function var_setter(val, id, variable) {
+        return val;
       }
     END
   end

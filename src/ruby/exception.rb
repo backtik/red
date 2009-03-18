@@ -4,7 +4,7 @@ class Red::MethodCompiler
     add_function :rb_attr_get, :rb_intern
     <<-END
       function exc_backtrace(exc) {
-        return rb_attr_get(exc, rb_intern("bt"));
+        return rb_attr_get(exc, rb_intern('bt'));
       }
     END
   end
@@ -29,7 +29,7 @@ class Red::MethodCompiler
     add_function :rb_scan_args, :rb_iv_set
     <<-END
       function exc_initialize(argc, argv, exc) {
-        var tmp = rb_scan_args(argc, argv, "01");
+        var tmp = rb_scan_args(argc, argv, '01');
         var arg = tmp[1] || Qnil;
         rb_iv_set(exc, 'mesg', arg);
         rb_iv_set(exc, 'bt', Qnil);
@@ -50,7 +50,7 @@ class Red::MethodCompiler
     add_function :rb_iv_set, :rb_check_backtrace
     <<-END
       function exc_set_backtrace(exc, bt) {
-        return rb_iv_set(exc, "bt", rb_check_backtrace(bt));
+        return rb_iv_set(exc, 'bt', rb_check_backtrace(bt));
       }
     END
   end
@@ -60,7 +60,7 @@ class Red::MethodCompiler
     add_functions :rb_attr_get, :rb_class_name
     <<-END
       function exc_to_s(exc) {
-        var mesg = rb_attr_get(exc, rb_intern("mesg"));
+        var mesg = rb_attr_get(exc, rb_intern('mesg'));
         if (NIL_P(mesg)) { return rb_class_name(CLASS_OF(exc)); }
         if (OBJ_TAINTED(exc)) { OBJ_TAINT(mesg); }
         return mesg;
@@ -68,13 +68,13 @@ class Red::MethodCompiler
     END
   end
   
-  # changed call to "to_s"
+  # changed call to 'to_s'
   def exc_to_str
     add_function :rb_funcall
     add_method :to_s
     <<-END
       function exc_to_str(exc) {
-        return rb_funcall(exc, rb_intern("to_s"), 0, 0);
+        return rb_funcall(exc, rb_intern('to_s'), 0, 0);
       }
     END
   end
@@ -145,7 +145,7 @@ class Red::MethodCompiler
         //mesg = rb_f_sprintf(3, [mesg, ptr[2], d]);
           mesg = rb_str_new(jsprintf(mesg.ptr, [rb_id2name(SYM2ID(ptr[2])), d.ptr]));
         }
-        if (OBJ_TAINTED(obj)) OBJ_TAINT(mesg);
+        if (OBJ_TAINTED(obj)) { OBJ_TAINT(mesg); }
         return mesg;
       }
     END
@@ -153,13 +153,14 @@ class Red::MethodCompiler
   
   # verbatim
   def name_err_to_s
-    add_function :rb_attr_get, :rb_intern, :rb_class_name, :rb_iv_set
+    add_function :rb_attr_get, :rb_intern, :rb_class_name, :rb_iv_set, :rb_string_value
     <<-END
       function name_err_to_s(exc) {
-        var str = mesg = rb_attr_get(exc, rb_intern("mesg"));
+        var mesg = rb_attr_get(exc, rb_intern('mesg'));
+        var str = mesg;
         if (NIL_P(mesg)) { return rb_class_name(CLASS_OF(exc)); }
-      //StringValue(str);
-        if (str != mesg) { rb_iv_set(exc, "mesg", mesg = str); }
+        rb_string_value(str);
+        if (str != mesg) { rb_iv_set(exc, 'mesg', mesg = str); }
         if (OBJ_TAINTED(exc)) { OBJ_TAINT(mesg); }
         return mesg;
       }
@@ -262,7 +263,7 @@ class Red::MethodCompiler
     <<-END
       function rb_exc_new3(etype, str) {
       //StringValue(str);
-        return rb_funcall(etype, rb_intern("new"), 1, str);
+        return rb_funcall(etype, rb_intern('new'), 1, str);
       }
     END
   end
@@ -331,6 +332,37 @@ class Red::MethodCompiler
         for (var i = 2, ary = []; typeof(arguments[i]) != 'undefined'; ++i) { ary.push(arguments[i]); }
         var buf = jsprintf(fmt,ary);
         rb_exc_raise(rb_exc_new(exc, buf));
+      }
+    END
+  end
+  
+  # verbatim
+  def syserr_eqq
+    add_function :rb_intern, :rb_obj_is_kind_of, :rb_respond_to, :rb_attr_get, :rb_funcall, :rb_const_get, :rb_equal
+    add_method :errno
+    <<-END
+      function syserr_eqq(self, exc) {
+        var en = rb_intern('errno');
+        if (!rb_obj_is_kind_of(exc, rb_eSystemCallError)) {
+          if (!rb_respond_to(exc, en)) { return Qfalse; }
+        } else if (self == rb_eSystemCallError) {
+          return Qtrue;
+        }
+        var num = rb_attr_get(exc, en);
+        if (NIL_P(num)) { num = rb_funcall(exc, en, 0, 0); }
+        var e = rb_const_get(self, rb_intern('Errno'));
+        if (FIXNUM_P(num) ? num == e : rb_equal(num, e)) { return Qtrue; }
+        return Qfalse;
+      }
+    END
+  end
+  
+  # verbatim
+  def syserr_errno
+    add_function :rb_attr_get, :rb_intern
+    <<-END
+      function syserr_errno(self) {
+        return rb_attr_get(self, rb_intern('errno'));
       }
     END
   end
