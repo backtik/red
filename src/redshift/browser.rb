@@ -13,7 +13,7 @@ class Red::MethodCompiler
     add_function :rb_hash_s_create, :rb_intern
     <<-END
       function browser_engine(browser) {
-        return rb_hash_s_create(4, [ID2SYM(rb_intern("name")), ruby_engine_name, ID2SYM(rb_intern("version")), ruby_engine_version], rb_cHash);
+        return rb_hash_s_create(4, [ID2SYM(rb_intern('name')), ruby_engine_name, ID2SYM(rb_intern('version')), ruby_engine_version], rb_cHash);
       }
     END
   end
@@ -32,7 +32,7 @@ class Red::MethodCompiler
     add_function :rb_scan_args
     <<-END
       function rb_f_gecko_p(argc, argv) {
-        var v = rb_scan_args(argc, argv, "01")[1];
+        var v = rb_scan_args(argc, argv, '01')[1];
         return (ruby_engine_name.ptr == 'gecko') ? (argc === 0 ? Qtrue : (ruby_engine_version == v ? Qtrue : Qfalse)) : Qfalse;
       }
     END
@@ -43,7 +43,7 @@ class Red::MethodCompiler
     add_function :rb_scan_args
     <<-END
       function rb_f_presto_p(argc, argv) {
-        var v = rb_scan_args(argc, argv, "01")[0];
+        var v = rb_scan_args(argc, argv, '01')[0];
         return (ruby_engine_name.ptr == 'presto') ? (argc === 0 ? Qtrue : (ruby_engine_version == v ? Qtrue : Qfalse)) : Qfalse;
       }
     END
@@ -63,7 +63,7 @@ class Red::MethodCompiler
     add_function :rb_scan_args
     <<-END
       function rb_f_trident_p(argc, argv) {
-        var v = rb_scan_args(argc, argv, "01")[0];
+        var v = rb_scan_args(argc, argv, '01')[0];
         return (ruby_engine_name.ptr == 'trident') ? (argc === 0 ? Qtrue : (ruby_engine_version == v ? Qtrue : Qfalse)) : Qfalse;
       }
     END
@@ -74,7 +74,7 @@ class Red::MethodCompiler
     add_function :rb_scan_args
     <<-END
       function rb_f_webkit_p(argc, argv) {
-        var v = rb_scan_args(argc, argv, "01")[0];
+        var v = rb_scan_args(argc, argv, '01')[0];
         return (ruby_engine_name.ptr == 'webkit') ? (argc === 0 ? Qtrue : (ruby_engine_version == v ? Qtrue : Qfalse)) : Qfalse;
       }
     END
@@ -108,7 +108,7 @@ class Red::MethodCompiler
             n = 'webkit';
             v = (ruby_xpath) ? (ruby_query ? 525 : 420) : 419;
           }
-          if (typeof(document.getBoxObjectFor) != "undefined") {
+          if (typeof(document.getBoxObjectFor) != 'undefined') {
             n = 'gecko';
             v = (document.getElementsByClassName) ? 19 : 18;
           }

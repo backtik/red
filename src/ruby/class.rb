@@ -77,7 +77,7 @@ class Red::MethodCompiler
     <<-END
       function rb_class_inherited(superclass, klass) {
         if (!superclass) { superclass = rb_cObject; }
-        return rb_funcall(superclass, rb_intern("inherited"), 1, klass);
+        return rb_funcall(superclass, rb_intern('inherited'), 1, klass);
       }
     END
   end
@@ -102,7 +102,7 @@ class Red::MethodCompiler
       function rb_class_initialize(argc, argv, klass) {
         var superclass;
         if (klass.superclass !== 0) { rb_raise(rb_eTypeError, "already initialized class"); }
-        var tmp = rb_scan_args(argc, argv, "01");
+        var tmp = rb_scan_args(argc, argv, '01');
         superclass = tmp[1];
         if (tmp[0] === 0) {
           superclass = rb_cObject;
@@ -252,6 +252,16 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def rb_define_method_id
+    add_function :rb_add_method
+    <<-END
+      function rb_define_method_id(klass, name, func, argc) {
+        rb_add_method(klass, name, NEW_CFUNC(func, argc), NOEX_PUBLIC);
+      }
+    END
+  end
+  
+  # verbatim
   def rb_define_module
     add_function :rb_const_defined, :rb_const_get, :rb_raise,
                  :rb_obj_classname, :rb_define_module_id, :rb_const_set
@@ -315,7 +325,7 @@ class Red::MethodCompiler
     END
   end
   
-  # reworked "goto" architecture using variable
+  # reworked 'goto' architecture using variable
   def rb_include_module
     add_function :rb_frozen_class_p, :rb_secure, :rb_raise, :include_class_new, :rb_clear_cache, :rb_check_type
     <<-END
@@ -422,12 +432,12 @@ class Red::MethodCompiler
         var klass;
         if (FIXNUM_P(obj) || SYMBOL_P(obj)) { rb_raise(rb_eTypeError, "can't define singleton"); }
         if (rb_special_const_p(obj)) {
-          if (obj == Qnil)   { return rb_cNilClass; } // was SPECIAL_SINGLETON(Qnil, rb_cNilClass)
-          if (obj == Qfalse) { return rb_cFalseClass; } // was SPECIAL_SINGLETON(Qfalse, rb_cFalseClass)
-          if (obj == Qtrue)  { return rb_cTrueClass; } // was SPECIAL_SINGLETON(Qtrue, rb_cTrueClass)
+          if (obj == Qnil)    { return rb_cNilClass; } // was SPECIAL_SINGLETON(Qnil, rb_cNilClass)
+          if (obj === Qfalse) { return rb_cFalseClass; } // was SPECIAL_SINGLETON(Qfalse, rb_cFalseClass)
+          if (obj == Qtrue)   { return rb_cTrueClass; } // was SPECIAL_SINGLETON(Qtrue, rb_cTrueClass)
         }
       //DEFER_INTS();
-        if (FL_TEST(obj.basic.klass, FL_SINGLETON) && (rb_iv_get(obj.basic.klass, "__attached__") == obj)) {
+        if (FL_TEST(obj.basic.klass, FL_SINGLETON) && (rb_iv_get(obj.basic.klass, '__attached__') == obj)) {
           klass = obj.basic.klass;
         } else {
           klass = rb_make_metaclass(obj, obj.basic.klass);
@@ -494,8 +504,8 @@ class Red::MethodCompiler
     END
   end
   
-  # unwound "goto" architecture, modified va_arg handling
-  # instead of getting pointers in vargs gets "true" values
+  # unwound 'goto' architecture, modified va_arg handling
+  # instead of getting pointers in vargs gets 'true' values
   # returns array of values instead of setting pointers: [argc, val1, val2, ...]
   def rb_scan_args
     add_function :rb_raise, :rb_fatal, :rb_ary_new, :rb_block_given_p, :rb_block_proc
@@ -508,7 +518,7 @@ class Red::MethodCompiler
         var goto_error = 0;
         var goto_rest_arg = 0;
         if (fmt[p] == '*') { goto_rest_arg = 1; }
-        if (!goto_rest_arg) { // added to handle "goto rest_arg"
+        if (!goto_rest_arg) { // added to handle 'goto rest_arg'
           if (ISDIGIT(fmt[p])) {
             n = fmt[p] - '0';
             if (argc < n) { rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)", argc, n); }
@@ -531,8 +541,8 @@ class Red::MethodCompiler
             }
             p++;
           }
-        } // added to handle "goto rest_arg"
-        if (goto_rest_arg || (fmt[p] == '*')) { // added "goto_rest_arg ||" in condition
+        } // added to handle 'goto rest_arg'
+        if (goto_rest_arg || (fmt[p] == '*')) { // added 'goto_rest_arg ||' in condition
           if (argc > i) {
             var ary4 = rb_ary_new();
             MEMCPY(ary4.ptr, argv.slice(i), argc - i);
@@ -547,7 +557,7 @@ class Red::MethodCompiler
           ary.push(rb_block_given_p() ? rb_block_proc() : Qnil);
           p++;
         }
-        if (typeof(fmt[p]) != "undefined") {
+        if (typeof(fmt[p]) != 'undefined') {
           rb_fatal("bad scan arg format: %s", fmt);
           return [0];
         }

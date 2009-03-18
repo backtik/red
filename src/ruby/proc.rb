@@ -78,8 +78,7 @@ class Red::MethodCompiler
           avalue = Qfalse;
           args = args.ptr;
         }
-        var _old_vars = ruby_dyna_vars; // ff. was PUSH_VARS
-        ruby_dyna_vars = 0; // ^^
+        PUSH_VARS();
         ruby_dyna_vars = data.dyna_vars;
         var old_block = ruby_block;
         var _block = data;
@@ -97,21 +96,9 @@ class Red::MethodCompiler
           _block.scope = scope;
         }
         ruby_block = _block;
-        var _iter = {}; // ff. was PUSH_ITER(ITER_CUR)
-        _iter.prev = ruby_iter;
-        _iter.iter = ITER_CUR;
-        ruby_iter = _iter; // ^^
+        PUSH_ITER(ITER_CUR);
         ruby_frame.iter = ITER_CUR;
-        var _tag = {}; // ff. was PUSH_TAG(pcall ? PROT_LAMBDA : PROT_NONE)
-        _tag.retval = Qnil;
-        _tag.frame = ruby_frame;
-        _tag.iter = ruby_iter;
-        _tag.prev = prot_tag;
-        _tag.scope = ruby_scope;
-        _tag.tag = pcall ? PROT_LAMBDA : PROT_NONE;
-        _tag.dst = 0;
-        _tag.blkid = 0;
-        prot_tag = _tag; // ^
+        PUSH_TAG(pcall ? PROT_LAMBDA : PROT_NONE);
         try {
           proc_set_safe_level(proc);
           result = rb_yield_0(args[0], self, (self != Qundef) ? CLASS_OF(self) : 0, pcall | YIELD_PROC_CALL, avalue);
@@ -120,13 +107,10 @@ class Red::MethodCompiler
           if (typeof(state = x) != 'number') { throw(state); }
           if (TAG_DST()) { result = prot_tag.retval; }
         }
-        prot_tag = _tag.prev; // was POP_TAG
-        ruby_iter = _iter.prev; // was POP_ITER
+        POP_TAG();
+        POP_ITER();
         ruby_block = old_block;
-        if (_old_vars && (ruby_scope.flags & SCOPE_DONT_RECYCLE)) { // ff. was POP_VARS
-          if (_old_vars.basic.flags) /* unless it's already recycled */ { FL_SET(_old_vars, DVAR_DONT_RECYCLE); }
-        }
-        ruby_dyna_vars = _old_vars; // ^^
+        POP_VARS();
         ruby_safe_level = safe;
         switch (state) {
           case 0:
@@ -195,7 +179,7 @@ class Red::MethodCompiler
     END
   end
   
-  # eliminated "len" handling
+  # eliminated 'len' handling
   def proc_to_s
     add_function :rb_obj_classname
     <<-END

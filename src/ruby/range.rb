@@ -1,8 +1,38 @@
 class Red::MethodCompiler
-  # CHECK
+  # verbatim
+  def r_le
+    add_function :rb_funcall, :rb_cmpint
+    add_method :'<=>'
+    <<-END
+      function r_le(a, b) {
+        var r = rb_funcall(a, id_cmp, 1, b);
+        if (NIL_P(r)) { return Qfalse; }
+        var c = rb_cmpint(r, a, b);
+        if (c === 0) { return INT2FIX(0); }
+        if (c < 0) { return Qtrue; }
+        return Qfalse;
+      }
+    END
+  end
+  
+  # verbatim
+  def r_lt
+    add_function :rb_funcall, :rb_cmpint
+    add_method :'<=>'
+    <<-END
+      function r_lt(a, b) {
+        var r = rb_funcall(a, id_cmp, 1, b);
+        if (NIL_P(r)) { return Qfalse; }
+        if (rb_cmpint(r, a, b) < 0) { return Qtrue; }
+        return Qfalse;
+      }
+    END
+  end
+  
+  # verbatim
   def range_check
     add_function :rb_funcall
-    add_method :"<=>"
+    add_method :'<=>'
     <<-END
       function range_check(args) {
         return rb_funcall(args[0], id_cmp, 1, args[1]);
@@ -25,12 +55,13 @@ class Red::MethodCompiler
     END
   end
   
-  # CHECK
+  # verbatim
   def range_failed
     add_function :rb_raise
     <<-END
       function range_failed() {
         rb_raise(rb_eArgError, "bad value for range");
+        return Qnil;
       }
     END
   end
@@ -51,7 +82,26 @@ class Red::MethodCompiler
     END
   end
   
-  # CHECK
+  # verbatim
+  def range_include
+    add_function :rb_ivar_get, :r_le, :r_lt
+    <<-END
+      function range_include(range, val) {
+        var beg = rb_ivar_get(range, id_beg);
+        var end = rb_ivar_get(range, id_end);
+        if (r_le(beg, val)) {
+          if (EXCL(range)) {
+            if (r_lt(val, end)) { return Qtrue; }
+          } else {
+            if (r_le(val, end)) { return Qtrue; }
+          }
+        }
+        return Qfalse;
+      }
+    END
+  end
+  
+  # verbatim
   def range_init
     add_function :rb_rescue, :range_failed, :rb_ivar_set
     <<-END
@@ -73,12 +123,12 @@ class Red::MethodCompiler
     add_function :rb_ivar_defined, :rb_name_error, :range_init
     <<-END
       function range_initialize(argc, argv, range) {
-        var tmp = rb_scan_args(argc, argv, "21");
+        var tmp = rb_scan_args(argc, argv, '21');
         var beg = tmp[1];
         var end = tmp[2];
         var flags = tmp[3];
         /* Ranges are immutable, so that they should be initialized only once. */
-        if (rb_ivar_defined(range, id_beg)) { rb_name_error(rb_intern("initialize"), "`initialize' called twice"); }
+        if (rb_ivar_defined(range, id_beg)) { rb_name_error(rb_intern('initialize'), "'initialize' called twice"); }
         range_init(range, beg, end, RTEST(flags));
         return Qnil;
       }
@@ -101,16 +151,24 @@ class Red::MethodCompiler
     END
   end
   
-  # EMPTY
+  # modified string handling
   def range_to_s
+    add_function :rb_obj_as_string, :rb_ivar_get, :rb_str_dup
     <<-END
-      function range_to_s() {}
+      function range_to_s(range) {
+        var str = rb_obj_as_string(rb_ivar_get(range, id_beg));
+        var str2 = rb_obj_as_string(rb_ivar_get(range, id_end));
+        var str = rb_str_dup(str);
+        str.ptr += (EXCL(range) ? "..." : "..") + str2.ptr;
+        OBJ_INFECT(str, str2);
+        return str;
+      }
     END
   end
   
   # modified to return array [result, begp, lenp] instead of using pointers
   def rb_range_beg_len
-    add_function :rb_obj_is_kind_of, :rb_ivar_get, :rb_raise
+    add_function :rb_obj_is_kind_of, :rb_ivar_get, :rb_raise, :rb_num2long
     <<-END
       function rb_range_beg_len(range, len, err) {
         if (!rb_obj_is_kind_of(range, rb_cRange)) { return Qfalse; }

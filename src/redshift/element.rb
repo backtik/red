@@ -58,7 +58,7 @@ class Red::MethodCompiler
                  :rb_raise
     <<-END
       function elem_insert(argc, argv, elem) {
-        var tmp = rb_scan_args(argc, argv, "11");
+        var tmp = rb_scan_args(argc, argv, '11');
         if (tmp[0] == 1) {
           rb_insert_bottom_child(elem.ptr, tmp[1].ptr);
         } else {
@@ -163,8 +163,8 @@ class Red::MethodCompiler
       function elem_to_s(elem) {
         var element = elem.ptr;
         var tag = element.tagName.toUpperCase();
-        var id = (element.id) ? (' id="' + element.id + '"') : '';
-        var klass = (element.className) ? (' class="' + element.className + '"') : '';
+        var id = (element.id) ? (" id=\\x22" + element.id + "\\x22") : "";
+        var klass = (element.className) ? (" class=\\x22" + element.className + "\\x22") : "";
         var str = rb_str_new("#<Element: " + tag + id + klass + ">");
         if (OBJ_TAINTED(elem)) { OBJ_TAINT(elem); }
         return str;
@@ -285,7 +285,7 @@ class Red::MethodCompiler
         var x = 0;
         var y = 0;
         if (!rb_element_is_body_p(element)) {
-          var relative_position = [0, 0]; // add option to ask for "left"/"top" relative to another element
+          var relative_position = [0, 0]; // add option to ask for 'left'/'top' relative to another element
           x = rb_element_offsets(element)[0] - rb_element_scrolls(element)[0] - relative_position[0];
           y = rb_element_offsets(element)[1] - rb_element_scrolls(element)[1] - relative_position[1];
         }

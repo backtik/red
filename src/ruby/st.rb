@@ -34,6 +34,7 @@ class Red::MethodCompiler
           'compare': numcmp,
           'hash': numhash
         };
+        generic_iv_tbl = st_init_numtable();
       }
     END
   end
@@ -133,7 +134,7 @@ class Red::MethodCompiler
         var result = 0;
         var hash_val = do_hash(key, table) % table.num_bins;
         var ptr = table.bins[hash_val];
-        if ((ptr || 0) == 0) {
+        if ((ptr || 0) === 0) {
           if (value !== 0) { value = 0; }
           result = 0;
         }
@@ -216,7 +217,7 @@ class Red::MethodCompiler
                 return 0;
               case ST_DELETE:
                 tmp = ptr;
-                if (last == 0) {
+                if (last === 0) {
                   table.bins[i] = ptr.next || 0;
                 } else {
                   last.next = ptr.next || 0;
@@ -246,7 +247,7 @@ class Red::MethodCompiler
     END
   end
   
-  # replaced "free" with JS "delete"
+  # replaced 'free' with JS 'delete'
   def st_free_table
     <<-END
       function st_free_table(table) {

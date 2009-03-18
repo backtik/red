@@ -1,5 +1,5 @@
 class Red::MethodCompiler
-  # expanded "Data_Make_Struct"
+  # expanded 'Data_Make_Struct'
   def enumerator_allocate
     add_function :rb_data_object_alloc
     <<-END
@@ -78,7 +78,7 @@ class Red::MethodCompiler
     add_function :rb_raise, :enumerator_init
     <<-END
       function enumerator_initialize(argc, argv, obj) {
-        if (argc == 0) { rb_raise(rb_eArgError, "wrong number of argument (0 for 1)"); }
+        if (argc === 0) { rb_raise(rb_eArgError, "wrong number of argument (0 for 1)"); }
         var meth = sym_each;
         var argvp = 0;
         var recv = argv[argvp++];

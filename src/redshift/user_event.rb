@@ -8,7 +8,7 @@ class Red::MethodCompiler
     END
   end
   
-  # need to add special "unload" type handler
+  # need to add special 'unload' type handler
   def uevent_add_listener
     add_function :rb_block_proc, :rb_proc_call, :rb_ary_new, :rb_id2name,
                  :rb_event_wrapper
@@ -53,7 +53,7 @@ class Red::MethodCompiler
         var custom_type;
         var listener;
         var condition_func;
-        var tmp = rb_scan_args(argc, argv, "11");
+        var tmp = rb_scan_args(argc, argv, '11');
         var type_id = rb_to_id(tmp[1]);
         var real_type_id = type_id;
         var block_is_proc = (tmp[0] == 1);
@@ -68,7 +68,7 @@ class Red::MethodCompiler
           }
           if (custom_type.condition) {
             var condition_block = custom_type.condition;
-            condition_func = function(ev) { var args = [ev]; return RTEST(rb_funcall2(condition_block, rb_intern("call"), 1, [ev])) ? RTEST(rb_funcall2(block, rb_intern("call"), 1, [4])) : true; };
+            condition_func = function(ev) { var args = [ev]; return RTEST(rb_funcall2(condition_block, rb_intern('call'), 1, [ev])) ? RTEST(rb_funcall2(block, rb_intern('call'), 1, [4])) : true; };
           }
           real_type_id = custom_type.base || real_type_id;
         }

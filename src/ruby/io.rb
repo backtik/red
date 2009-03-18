@@ -11,6 +11,20 @@ class Red::MethodCompiler
     END
   end
   
+  def io_puts_ary
+    add_function :rb_io_puts, :rb_inspecting_p
+    <<-END
+      function io_puts_ary(ary, out) {
+        for (var i = 0, p = ary.ptr, l = p.length; i < l; ++i) {
+          var tmp = p[i];
+          if (rb_inspecting_p(tmp)) { tmp = rb_str_new("[...]"); }
+          rb_io_puts(1, [tmp], out);
+        }
+        return Qnil;
+      }
+    END
+  end
+  
   # CHECK
   def io_write
     add_function :rb_obj_as_string
@@ -18,10 +32,19 @@ class Red::MethodCompiler
       function io_write(io, str) {
         var n;
         if (TYPE(str) != T_STRING) { str = rb_obj_as_string(str); }
-        if (str.ptr.length == 0) { return INT2FIX(0); }
+        if (str.ptr.length === 0) { return INT2FIX(0); }
         n = str.ptr.length;
         CONSOLE_LOG_BUFFER += str.ptr;
       //return LONG2FIX(n);
+      }
+    END
+  end
+  
+  def lineno_setter
+    <<-END
+      function lineno_setter(val, id, variable) {
+        gets_lineno = NUM2INT(val);
+        return INT2FIX(gets_lineno)
       }
     END
   end
@@ -60,11 +83,11 @@ class Red::MethodCompiler
   # CHECK
   def rb_io_puts
     add_functions :rb_io_write, :rb_str_new, :rb_check_array_type, :rb_protect_inspect,
-                  :rb_obj_as_string, :rb_io_write
+                  :rb_obj_as_string, :rb_io_write, :io_puts_ary
     <<-END
       function rb_io_puts(argc, argv, out) {
         var line;
-        if (argc == 0) {
+        if (argc === 0) {
           rb_io_write(out, rb_default_rs);
           console.log(CONSOLE_LOG_BUFFER);
           CONSOLE_LOG_BUFFER = '';
@@ -82,7 +105,7 @@ class Red::MethodCompiler
             line = rb_obj_as_string(argv[i]);
           }
           rb_io_write(out, line);
-          if (line.ptr == '' || line.ptr[line.ptr.length - 1] != '\\n') {
+          if (line.ptr === '' || line.ptr[line.ptr.length - 1] != '\\n') {
             rb_io_write(out, rb_default_rs);
           }
         }
@@ -114,7 +137,7 @@ class Red::MethodCompiler
     END
   end
   
-  # merged rb_write_error and rb_write_error2 to eliminate "len", changed stderr to stdout
+  # merged rb_write_error and rb_write_error2 to eliminate 'len', changed stderr to stdout
   def rb_write_error
     add_function :rb_io_write, :rb_str_new
     <<-END

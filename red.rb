@@ -348,7 +348,8 @@ module Red
       MISC = {
         :ARY_MAX_SIZE       => 4294967295,
         :ARY_TMPLOCK        => 1 << (11 + 1),
-        :BIGRAD             => 1 << 64, # assuming BITSPERDIG is 8 * 8
+        :BIGRAD             => 1 << 16,
+        :BITSPERDIG         => 16,
         :ID_ALLOCATOR       => 1,
         :FIXNUM_FLAG        => 0x01,
         :SYMBOL_FLAG        => 0x0e,
@@ -362,6 +363,7 @@ module Red
         :DBL_MAX_EXP        => 1024,
         :DBL_MIN_10_EXP     => -307,
         :DBL_MAX_10_EXP     => 308,
+        :DIGSPERLONG        => 10,
         :DVAR_DONT_RECYCLE  => 1 << (11 + 2),
         :FRAME_DMETH        => 1,
         :HASH_DELETED       => 1 << (11 + 1),
@@ -370,8 +372,8 @@ module Red
         :NODE_LSHIFT        => 11 + 8,
         :NODE_LMASK         => (1 << (4 * 8 - 19)) - 1,
         :ruby_cbase         => "ruby_cref.u1",
-        :BEGIN_CALLARGS     => "(function CALLARGS_MACRO() { var tmp_block = ruby_block, tmp_iter = ruby_iter.iter; switch (tmp_iter) { case 1: if (ruby_block) { ruby_block = ruby_block.outer; } case 3: tmp_iter = 0; } (function ITER_MACRO() { var _iter = { prev: ruby_iter, iter: tmp_iter }; ruby_iter = _iter",
-        :END_CALLARGS       => "ruby_block = tmp_block; ruby_iter = _iter.prev; })(); })()"
+        :BEGIN_CALLARGS     => "(function CALLARGS_MACRO(){var tmp_block=ruby_block,tmp_iter=ruby_iter.iter;switch(tmp_iter){case 1:if(ruby_block){ruby_block=ruby_block.outer;}case 3:tmp_iter=0;}(function ITER_MACRO(){var _iter={prev:ruby_iter,iter:tmp_iter};ruby_iter=_iter",
+        :END_CALLARGS       => "ruby_block=tmp_block;ruby_iter=_iter.prev;})();})()"
       }
       RUBY_CONSTANTS = [
         NODE_TYPES,
@@ -440,8 +442,8 @@ module Red
         :NEW_FBODY       => "rb_node_newnode(NODE_FBODY,%s,%s,o)",
         :NEW_FCALL       => "rb_node_newnode(NODE_FCALL,0,%s,%s)",
         :NEW_FOR         => "rb_node_newnode(NODE_FOR,%1$s,%3$s,%2$s)",
-        :NEW_GASGN       => "rb_node_newnode(NODE_GASGN,%1$s,%2$s,%1$s)",
-        :NEW_GVAR        => "rb_node_newnode(NODE_GVAR,%1$s,0,%1$s)",
+        :NEW_GASGN       => "rb_node_newnode(NODE_GASGN,%1$s,%2$s,rb_global_entry(%1$s))",
+        :NEW_GVAR        => "rb_node_newnode(NODE_GVAR,%1$s,0,rb_global_entry(%1$s))",
         :NEW_HASH        => "rb_node_newnode(NODE_HASH,%s,0,0)",
         :NEW_IASGN       => "rb_node_newnode(NODE_IASGN,%s,%s,0)",
         :NEW_IF          => "rb_node_newnode(NODE_IF,%s,%s,%s)",
@@ -494,74 +496,80 @@ module Red
         :NEW_ZSUPER      => "rb_node_newnode(NODE_ZSUPER,0,0,0)"
       }
       PUSH_POP = {
-        :PUSH_BLOCK => "(function BLOCK_MACRO() { var _block = { vars: (%1$s), body: (%2$s), self: self, frame: ruby_frame, klass: ruby_class, cref: ruby_cref, scope: ruby_scope, prev: ruby_block, outer: ruby_block, iter: ruby_iter.iter, vmode: scope_vmode, flags: BLOCK_D_SCOPE, dyna_vars: ruby_dyna_vars, block_obj: 0, uniq: (%2$s) ? block_unique++ : 0 }; _block.frame.node = ruby_current_node; if (%2$s) { prot_tag.blkid = _block.uniq; } ruby_block = _block",
-        :POP_BLOCK  => "ruby_block = _block.prev; })()",
+        :PUSH_BLOCK => "(function BLOCK_MACRO(){var _block={vars:(%1$s),body:(%2$s),self:self,frame:ruby_frame,klass:ruby_class,cref:ruby_cref,scope:ruby_scope,prev:ruby_block,outer:ruby_block,iter:ruby_iter.iter,vmode:scope_vmode,flags:BLOCK_D_SCOPE,dyna_vars:ruby_dyna_vars,block_obj:0,uniq:(%2$s)?block_unique++:0};_block.frame.node=ruby_current_node;if(%2$s){prot_tag.blkid=_block.uniq;}ruby_block=_block",
+        :POP_BLOCK  => "ruby_block=_block.prev;})()",
         
-        :PUSH_CLASS => "(function CLASS_MACRO() { var _class = ruby_class; ruby_class = (%s)",
-        :POP_CLASS  => "ruby_class = _class; })()",
+        :PUSH_CLASS => "(function CLASS_MACRO(){var _class=ruby_class;ruby_class=(%s)",
+        :POP_CLASS  => "ruby_class=_class;})()",
         
-        :PUSH_CREF  => "ruby_cref = rb_node_newnode(NODE_CREF,(%s),0,ruby_cref)",
-        :POP_CREF   => "ruby_cref = ruby_cref.nd_next",
+        :PUSH_CREF  => "ruby_cref=rb_node_newnode(NODE_CREF,(%s),0,ruby_cref)",
+        :POP_CREF   => "ruby_cref=ruby_cref.nd_next",
         
-        :PUSH_FRAME => "(function FRAME_MACRO() { var _frame = { prev: ruby_frame, tmp: 0, node: ruby_current_node, iter: ruby_iter.iter, argc: 0, flags: 0, uniq: frame_unique++ }; ruby_frame = _frame",
-        :POP_FRAME  => "ruby_current_node = _frame.node; ruby_frame = _frame.prev; })()",
+        :PUSH_FRAME => "(function FRAME_MACRO(){var _frame={prev:ruby_frame,tmp:0,node:ruby_current_node,iter:ruby_iter.iter,argc:0,flags:0,uniq:frame_unique++};ruby_frame=_frame",
+        :POP_FRAME  => "ruby_current_node=_frame.node;ruby_frame=_frame.prev;})()",
         
-        :PUSH_ITER  => "(function ITER_MACRO() { var _iter = { prev: ruby_iter, iter: (%s) }; ruby_iter = _iter",
-        :POP_ITER   => "ruby_iter = _iter.prev; })()",
+        :PUSH_ITER  => "(function ITER_MACRO(){var _iter={prev:ruby_iter,iter:(%s)};ruby_iter=_iter",
+        :POP_ITER   => "ruby_iter=_iter.prev;})()",
         
-        :PUSH_SCOPE => "(function SCOPE_MACRO() { var _vmode = scope_vmode, _scope = { rvalue: last_value += 4, basic: { klass: 0, flags: T_SCOPE }, local_tbl: 0, local_vars: [], flags: 0 }; var _old = ruby_scope; ruby_scope = _scope; scope_vmode = SCOPE_PUBLIC",
-        :POP_SCOPE  => "if (ruby_scope.flags & SCOPE_DONT_RECYCLE) { if (_old) { scope_dup(_old); } } if (!(ruby_scope.flags & SCOPE_MALLOC)) { ruby_scope.local_vars = []; ruby_scope.local_tbl = 0; } ruby_scope.flags |= SCOPE_NOSTACK; ruby_scope = _old; scope_vmode = _vmode; })()",
+        :PUSH_SCOPE => "(function SCOPE_MACRO(){var _vmode=scope_vmode,_scope={rvalue:last_value+=4,basic:{klass:0,flags:T_SCOPE},local_tbl:0,local_vars:[],flags:0};var _old=ruby_scope;ruby_scope=_scope;scope_vmode=SCOPE_PUBLIC",
+        :POP_SCOPE  => "if(ruby_scope.flags&SCOPE_DONT_RECYCLE){if(_old){scope_dup(_old);}}if(!(ruby_scope.flags&SCOPE_MALLOC)){ruby_scope.local_vars=[];ruby_scope.local_tbl=0;}ruby_scope.flags|=SCOPE_NOSTACK;ruby_scope=_old;scope_vmode=_vmode;})()",
         
-        :PUSH_TAG   => "(function TAG_MACRO() { var _tag = { retval: Qnil, frame: ruby_frame, iter: ruby_iter, prev: prot_tag, scope: ruby_scope, tag: (%s), dst: 0, blkid: 0 }; prot_tag = _tag",
-        :POP_TAG    => "prot_tag = _tag.prev; })()",
+        :PUSH_TAG   => "(function TAG_MACRO(){var _tag={retval:Qnil,frame:ruby_frame,iter:ruby_iter,prev:prot_tag,scope:ruby_scope,tag:(%s),dst:0,blkid:0};prot_tag=_tag",
+        :POP_TAG    => "prot_tag=_tag.prev;})()",
         
-        :PUSH_VARS  => "(function VARS_MACRO() { var _old = ruby_dyna_vars; ruby_dyna_vars = 0",
-        :POP_VARS   => "if (_old && (ruby_scope.flags & SCOPE_DONT_RECYCLE) && _old.flags) { FL_SET(_old, DVAR_DONT_RECYCLE); } ruby_dyna_vars = _old; })()",
+        :PUSH_VARS  => "(function VARS_MACRO(){var _old=ruby_dyna_vars;ruby_dyna_vars=0",
+        :POP_VARS   => "if(_old&&(ruby_scope.flags&SCOPE_DONT_RECYCLE)&&_old.flags){FL_SET(_old,DVAR_DONT_RECYCLE);}ruby_dyna_vars=_old;})()",
         
-        :SETUP_ARGS => "(function SETUP_ARGS_MACRO() { var n = (%s); if (!n) { argc = 0; argv = 0; } else if (((n.flags >> FL_USHIFT) & 0xff) == NODE_ARRAY) { argc = n.nd_alen; if (argc > 0) { argv = []; for (var i = 0; i < argc; i++) { argv[i] = rb_eval(self,n.nd_head); n = n.nd_next; } } else { argc = 0; argv = 0; } } else { var args = rb_eval(self,n); if (TYPE(args) != T_ARRAY) { args = rb_ary_to_ary(args); } argc = args.ptr.length; argv = []; MEMCPY(argv, args.ptr, argc); } })()"
+        :SETUP_ARGS => "(function SETUP_ARGS_MACRO(){var n=(%s);if(!n){argc=0;argv=0;}else if(((n.flags>>FL_USHIFT)&0xff)==NODE_ARRAY){argc=n.nd_alen;if(argc>0){argv=[];for(var i=0;i<argc;i++){argv[i]=rb_eval(self,n.nd_head);n=n.nd_next;}}else{argc=0;argv=0;}}else{var args=rb_eval(self,n);if(TYPE(args)!=T_ARRAY){args=rb_ary_to_ary(args);}argc=args.ptr.length;argv=[];MEMCPY(argv,args.ptr,argc);}})()"
       }
       MISC = {
-        :ADD_DIRECT      => "do { var entry; if (((%1$s).num_entries / (%1$s).num_bins) > 5) { rehash(%1$s); (%5$s) = (%4$s) %% (%1$s).num_bins; } entry = {}; entry.hash = (%4$s); entry.key = (%2$s); entry.record = (%3$s); entry.next = (%1$s).bins[(%5$s)]; (%1$s).bins[(%5$s)] = entry; (%1$s).num_entries++; } while (0)",
+        :ADD_DIRECT      => "do{var entry;if(((%1$s).num_entries/(%1$s).num_bins)>5){rehash(%1$s);(%5$s)=(%4$s)%%(%1$s).num_bins;}entry={};entry.hash=(%4$s);entry.key=(%2$s);entry.record=(%3$s);entry.next=(%1$s).bins[(%5$s)];(%1$s).bins[(%5$s)]=entry;(%1$s).num_entries++;}while(0)",
         :BDIGITS         => "(%s).digits",
-        :BUILTIN_TYPE    => "((%s).basic.flags & T_MASK)",
+        :BIGDN           => "((%s)<<BITSPERDIG)",
+        :BIGLO           => "((%s)&(BIGRAD-1))",
+        :BIGUP           => "((%s)>>BITSPERDIG)",
+        :bignew          => "bignew_1(rb_cBignum,%s,%s)",
+        :BUILTIN_TYPE    => "((%s).basic.flags&T_MASK)",
         :do_hash         => "((%2$s).type.hash(%1$s))",
-        :EXPR1           => "((((%s) >> 3) ^ (%s)) & CACHE_MASK)",
-        :FIX2LONG        => "((%s) >> 1)",
-        :FIX2ULONG       => "((%s) >> 1)",
-        :FIXABLE         => "(((%1$s) < FIXNUM_MAX + 1) && ((%1$s) >= FIXNUM_MIN))",
-        :FIXNUM_P        => "((%s) & FIXNUM_FLAG)",
-        :FL_SET          => "(FL_ABLE(%1$s) ? (%1$s).basic.flags |= (%2$s) : 0)",
-        :ID2SYM          => "((%s) << 8 | SYMBOL_FLAG)",
-        :IMMEDIATE_P     => "((%s) & IMMEDIATE_MASK)",
-        :INT2FIX         => "((%s) << 1 | FIXNUM_FLAG)",
+        :EXPR1           => "((((%s)>>3)^(%s))&CACHE_MASK)",
+        :FIX2LONG        => "((%s)>>1)",
+        :FIX2ULONG       => "((%s)>>1)",
+        :FIXABLE         => "(((%1$s)<FIXNUM_MAX+1)&&((%1$s)>=FIXNUM_MIN))",
+        :FIXNUM_P        => "((%s)&FIXNUM_FLAG)",
+        :FL_SET          => "(FL_ABLE(%1$s)?(%1$s).basic.flags|=(%2$s):0)",
+        :GetTimeval      => "do{var %2$s=(%1$s).data;}while(0)",
+        :ID2SYM          => "((%s)<<8|SYMBOL_FLAG)",
+        :IMMEDIATE_P     => "((%s)&IMMEDIATE_MASK)",
+        :INT2FIX         => "((%s)<<1|FIXNUM_FLAG)",
         :INT2NUM         => "rb_int2inum(%s)",
         :ISALNUM         => "(/[a-zA-Z0-9]/).test(%s)",
-        :ISASCII         => "((%s).charCodeAt(0) < 128)",
+        :ISASCII         => "((%s).charCodeAt(0)<128)",
         :ISDIGIT         => "(/[0-9]/).test(%s)",
         :ISUPPER         => "(/[A-Z]/).test(%s)",
-        :LONG2FIX        => "((%s) << 1 | FIXNUM_FLAG)",
+        :LONG2FIX        => "((%s)<<1|FIXNUM_FLAG)",
         :LONG2NUM        => "rb_int2inum(%s)",
-        :nd_line         => "(((%s).flags >> NODE_LSHIFT) & NODE_LMASK)",
-        :nd_set_line     => "((%1$s).flags = (((%1$s).flags & ~(-1 << NODE_LSHIFT)) | (((%2$s) & NODE_LMASK) << NODE_LSHIFT)))",
-        :nd_type         => "(((%s).flags >> FL_USHIFT) & 0xff)",
+        :nd_line         => "(((%s).flags>>NODE_LSHIFT)&NODE_LMASK)",
+        :nd_set_line     => "((%1$s).flags=(((%1$s).flags&~(-1<<NODE_LSHIFT))|(((%2$s)&NODE_LMASK)<<NODE_LSHIFT)))",
+        :nd_type         => "(((%s).flags>>FL_USHIFT)&0xff)",
         :NEW_NODE        => "rb_node_newnode(%s,%s,%s,%s)",
-        :NEWOBJ          => "{ rvalue: last_value += 4 }",
-        :NIL_P           => "((%s) == Qnil)",
-        :NOEX_SAFE       => "((%s) >> 4)",
-        :NOEX_WITH       => "((%s) | (%s) << 4)",
-        :OBJ_FROZEN      => "(FL_ABLE(%1$s) ? (%1$s).basic.flags & FL_FREEZE : 0)",
-        :OBJ_FREEZE      => "(FL_ABLE(%1$s) ? (%1$s).basic.flags |= FL_FREEZE : 0)",
-        :OBJ_TAINT       => "(FL_ABLE(%1$s) ? (%1$s).basic.flags |= FL_TAINT : 0)",
-        :OBJ_TAINTED     => "(FL_ABLE(%1$s) ? (%1$s).basic.flags & FL_TAINT : 0)",
-        :OBJSETUP        => "((%s).basic = { klass: (%s), flags: (%s) })",
+        :NEWOBJ          => "{rvalue:last_value+=4}",
+        :NIL_P           => "((%s)==Qnil)",
+        :NOEX_SAFE       => "((%s)>>4)",
+        :NOEX_WITH       => "((%s)|(%s)<<4)",
+        :NUM2LONG        => "(((%1$s)&FIXNUM_FLAG)?((%1$s)>>1):rb_num2long(%1$s))",
+        :OBJ_FROZEN      => "(FL_ABLE(%1$s)?(%1$s).basic.flags&FL_FREEZE:0)",
+        :OBJ_FREEZE      => "(FL_ABLE(%1$s)?(%1$s).basic.flags|=FL_FREEZE:0)",
+        :OBJ_TAINT       => "(FL_ABLE(%1$s)?(%1$s).basic.flags|=FL_TAINT:0)",
+        :OBJ_TAINTED     => "(FL_ABLE(%1$s)?(%1$s).basic.flags&FL_TAINT:0)",
+        :OBJSETUP        => "((%s).basic={klass:(%s),flags:(%s)})",
         :rb_int_new      => "rb_int2inum(%s)",
-        :return_value    => "do { if ((prot_tag.retval = (%s)) == Qundef) { prot_tag.retval = Qnil; } } while (0)",
-        :RETURN          => "throw({ goto_flag: finish_flag, value: (%s) })",
-        :RTEST           => "(((%1$s) != Qnil) && ((%1$s) !== Qfalse))",
-        :SPECIAL_CONST_P => "(((%1$s) & IMMEDIATE_MASK) || !(((%1$s) != Qnil) && ((%1$s) !== Qfalse)))",
-        :SYM2ID          => "((%s) >> 8)",
-        :SYMBOL_P        => "(((%s) & 0xff) == SYMBOL_FLAG)",
-        :TAG_DST         => "(prot_tag.dst == ruby_frame.uniq)"
+        :return_value    => "do{if((prot_tag.retval=(%s))==Qundef){prot_tag.retval=Qnil;}}while(0)",
+        :RETURN          => "throw({goto_flag:finish_flag,value:(%s)})",
+        :RTEST           => "(((%1$s)!=Qnil)&&((%1$s)!==Qfalse))",
+        :SPECIAL_CONST_P => "(((%1$s)&IMMEDIATE_MASK)||!(((%1$s)!=Qnil)&&((%1$s)!==Qfalse)))",
+        :SYM2ID          => "((%s)>>8)",
+        :SYMBOL_P        => "(((%s)&0xff)==SYMBOL_FLAG)",
+        :TAG_DST         => "(prot_tag.dst==ruby_frame.uniq)"
       }
       RUBY_MACROS = [
         PUSH_POP,
@@ -1197,23 +1205,48 @@ module Red
     return self.parse_and_compile_ast(File.read(args.last.last))
   end
   
+  def minify(js)
+    quote_queue = []
+    js.gsub!(/\/\/.*/," ")
+    js.gsub!(/\n/," ")
+    js.gsub!(/\s+/," ")
+    js.gsub!(/".*?"/) {|match| quote_queue.push(match); "$__$" }
+    js.gsub!(/\/\*\s.+?\s\*\//," ")
+    js.gsub!(/([a-zA-Z0-9_$\\])\s([^a-zA-Z0-9_$\\])/,'\1\2')
+    js.gsub!(/([^a-zA-Z0-9_$\\])\s([a-zA-Z0-9_$\\])/,'\1\2')
+    js.gsub!(/([^a-zA-Z0-9_$\\])\s([^a-zA-Z0-9_$\\])/,'\1\2')
+    js.gsub!(/([^a-zA-Z0-9_$\\])\s([^a-zA-Z0-9_$\\])/,'\1\2')
+    js.gsub!(/\$__\$/) { quote_queue.shift }
+    raise "Unterminated javascript string literal" unless quote_queue.empty?
+    return js
+  end
+  
   def parse_and_compile_ast(str)
     RawParseTree.new(true).parse_tree_for_string(str)[0].red!
   end
   
+  def rb_to_gz(path)
+    ungzipped = rb_to_js(path.gsub(/js/,'red'))
+    ::File.open('stream','w+') do |f|
+      gzw = GzipWriter.new(f)
+      gzw.write(ungzipped)
+      gzw.close
+    end
+    gzipped = ::File.read('stream')
+    ::File.delete('stream')
+    return gzipped
+  end
+  
   def rb_to_js(path)
-    pre = "ruby_init();\ntry { ruby_sourcefile = '%s'; rb_eval(ruby_top_self," % path
-    post = "); } catch (x) { if (typeof(state = x) != 'number') { throw(state); } error_print(); }"
+    pre = "ruby_init();\ntry{ruby_sourcefile='%s';rb_eval(ruby_top_self," % path
+    post = ");}catch(x){if(typeof(state=x)!='number'){throw(state);}error_print();}"
     red_js = pre + self.parse_and_compile_ast(::File.read(path)) + post
-    puts "\n\n\n#{red_js}\n\n\n"
+    puts "\n\n#{red_js}\n\n\n"
     ruby_source = SOURCE_FILES.inject("") {|result,x| result += File.read(x) }
     $mc.add_function(:ruby_init)
     ruby_source += $mc.functions
     ruby_source += $mc.methods
-    condensed_ruby_source = ruby_source.
-      gsub(/\s\/\/.*/,"").
-      gsub(/\n/," ").
-      gsub(/\s+/," ")
+    condensed_ruby_source = self.minify(ruby_source)
     Preprocessor.new.process!(condensed_ruby_source)
     source = condensed_ruby_source + red_js
   # $mc.compiled_functions.each do |name,stub|

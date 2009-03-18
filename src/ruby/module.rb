@@ -55,7 +55,7 @@ class Red::MethodCompiler
     add_function :rb_attr, :rb_to_id, :rb_scan_args
     <<-END
       function rb_mod_attr(argc, argv, klass) {
-        var tmp = rb_scan_args(argc, argv, "11");
+        var tmp = rb_scan_args(argc, argv, '11');
         var name = tmp[1];
         var pub = tmp[2];
         rb_attr(klass, rb_to_id(name), 1, RTEST(pub), Qtrue);
@@ -93,6 +93,27 @@ class Red::MethodCompiler
       function rb_mod_attr_writer(argc, argv, klass) {
         for (var i = 0; i < argc; ++i) { rb_attr(klass, rb_to_id(argv[i]), 0, 1, Qtrue); }
         return Qnil;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_mod_cmp
+    add_function :rb_class_inherited_p
+    <<-END
+      function rb_mod_cmp(mod, arg) {
+        if (mod == arg) { return INT2FIX(0); }
+        switch (TYPE(arg)) {
+          case T_MODULE:
+          case T_CLASS:
+            break;
+          default:
+            return Qnil;
+        }
+        var cmp = rb_class_inherited_p(mod, arg);
+        if (NIL_P(cmp)) { return Qnil; }
+        if (cmp) { return INT2FIX(-1); }
+        return INT2FIX(1);
       }
     END
   end
@@ -143,8 +164,8 @@ class Red::MethodCompiler
       function rb_mod_include(argc, argv, module) {
         for (var i = 0; i < argc; ++i) { Check_Type(argv[i], T_MODULE); }
         while (argc--) {
-          rb_funcall(argv[argc], rb_intern("append_features"), 1, module);
-          rb_funcall(argv[argc], rb_intern("included"), 1, module);
+          rb_funcall(argv[argc], rb_intern('append_features'), 1, module);
+          rb_funcall(argv[argc], rb_intern('included'), 1, module);
         }
         return module;
       }
@@ -165,17 +186,17 @@ class Red::MethodCompiler
         clone.superclass = orig.superclass;
         if (orig.iv_tbl) {
           var id;
-        //clone.iv_tbl = st_copy(RCLASS(orig)->iv_tbl);
-          id = rb_intern("__classpath__");
-        //st_delete(clone.iv_tbl, (st_data_t*)&id, 0);
-          id = rb_intern("__classid__");
-        //st_delete(clone.iv_tbl, (st_data_t*)&id, 0);
+          clone.iv_tbl = st_copy(orig.iv_tbl);
+          id = rb_intern('__classpath__');
+          st_delete(clone.iv_tbl, id, 0);
+          id = rb_intern('__classid__');
+          st_delete(clone.iv_tbl, id, 0);
         }
         if (orig.m_tbl) {
-          var data;
+          var data = {};
           data.tbl = clone.m_tbl = st_init_numtable();
           data.klass = clone;
-        //st_foreach(orig.m_tbl, clone_method, (st_data_t)&data);
+          st_foreach(orig.m_tbl, clone_method, data);
         }
         return clone;
       }
@@ -224,7 +245,7 @@ class Red::MethodCompiler
     END
   end
   
-  # removed "ruby_wrapper" handling
+  # removed 'ruby_wrapper' handling
   def rb_mod_nesting
     <<-END
       function rb_mod_nesting()
@@ -248,7 +269,7 @@ class Red::MethodCompiler
       function rb_mod_to_s(klass) {
         if (FL_TEST(klass, FL_SINGLETON)) {
           var s = rb_str_new("#<"); // changed from rb_str_new2
-          var v = rb_iv_get(klass, "__attached__");
+          var v = rb_iv_get(klass, '__attached__');
           rb_str_cat(s, "Class:"); // changed from rb_str_cat2
           switch (TYPE(v)) {
             case T_CLASS:

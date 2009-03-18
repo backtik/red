@@ -8,6 +8,26 @@ class Red::MethodCompiler
     END
   end
   
+  # modified st_lookup to return array instead of using pointers
+  def eql_i
+    add_function :st_lookup, :rb_eql, :rb_equal
+    <<-END
+      function eql_i(key, val1, data) {
+        if (key == Qundef) { return ST_CONTINUE; }
+        var tmp = st_lookup(data.tbl, key, 0);
+        if (!tmp[0]) {
+          data.result = Qfalse;
+          return ST_STOP;
+        }
+        if (!(data.eql ? rb_eql(val1, tmp[1]) : rb_equal(val1, tmp[1]))) {
+          data.result = Qfalse;
+          return ST_STOP;
+        }
+        return ST_CONTINUE;
+      }
+    END
+  end
+  
   # CHECK
   def hash_alloc
     add_function :hash_alloc0, :st_init_table
@@ -33,23 +53,23 @@ class Red::MethodCompiler
     END
   end
   
-  # modified "num_entries" handling
+  # renamed 'recursive_eql' to 'hash_recursive_eql'
   def hash_equal
-    add_function :rb_respond_to, :rb_intern, :rb_equal, :rb_exec_recursive, :recursive_eql
+    add_function :rb_respond_to, :rb_intern, :rb_equal, :rb_exec_recursive, :hash_recursive_eql
     add_method :to_hash
     <<-END
       function hash_equal(hash1, hash2, eql) {
         var data = {};
         if (hash1 == hash2) { return Qtrue; }
         if (TYPE(hash2) != T_HASH) {
-          if (!rb_respond_to(hash2, rb_intern("to_hash"))) { return Qfalse; }
+          if (!rb_respond_to(hash2, rb_intern('to_hash'))) { return Qfalse; }
           return rb_equal(hash2, hash1);
         }
-        if (hash1.num_entries != hash2.num_entries) { return Qfalse; }
+        if (hash1.tbl.num_entries != hash2.tbl.num_entries) { return Qfalse; }
         if (eql && !(rb_equal(hash1.ifnone, hash2.ifnone) && (FL_TEST(hash1, HASH_PROC_DEFAULT) == FL_TEST(hash2, HASH_PROC_DEFAULT)))) { return Qfalse; }
         data.tbl = hash2.tbl;
         data.eql = eql;
-        return rb_exec_recursive(recursive_eql, hash1, data);
+        return rb_exec_recursive(hash_recursive_eql, hash1, data);
       }
       
     END
@@ -119,9 +139,23 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def hash_recursive_eql
+    add_function :eql_i, :rb_hash_foreach
+    <<-END
+      function hash_recursive_eql(hash, dt, recur) {
+        if (recur) { return Qfalse; }
+        var data = dt;
+        data.result = Qtrue;
+        rb_hash_foreach(hash, eql_i, data);
+        return data.result;
+      }
+    END
+  end
+  
   # removed str_buf handling
   def inspect_hash
-    add_function :rb_hash_foreach, :inspect_i
+    add_function :rb_hash_foreach, :hash_inspect_i
     <<-END
       function inspect_hash(hash) {
         var str = rb_str_new("{");
@@ -133,7 +167,7 @@ class Red::MethodCompiler
     END
   end
   
-  # removed str_buf handling, renamed from "inspect_i"
+  # removed str_buf handling, renamed from 'inspect_i'
   def hash_inspect_i
     add_function :rb_inspect
     <<-END
@@ -180,7 +214,7 @@ class Red::MethodCompiler
         if ((TYPE(a) == T_STRING) && (a.basic.klass == rb_cString) && (TYPE(b) == T_STRING) && (b.basic.klass == rb_cString)) { return rb_str_cmp(a, b); }
         if ((a == Qundef) || (b == Qundef)) { return -1; }
         if (SYMBOL_P(a) && SYMBOL_P(b)) { return a != b; }
-        return !rb_eql(a, b); // was "rb_with_disable_interrupt(eql, [a, b])"
+        return !rb_eql(a, b); // was 'rb_with_disable_interrupt(eql, [a, b])'
       }
     END
   end
@@ -269,13 +303,50 @@ class Red::MethodCompiler
     add_method :call
     <<-END
       function rb_hash_default(argc, argv, hash) {
-        var tmp = rb_scan_args(argc, argv, "01");
+        var tmp = rb_scan_args(argc, argv, '01');
         var key = tmp[1];
         if (FL_TEST(hash, HASH_PROC_DEFAULT)) {
           if (argc === 0) { return Qnil; }
           return rb_funcall(hash.ifnone, id_call, 2, hash, key);
         }
         return hash.ifnone;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_hash_delete
+    add_function :rb_hash_modify, :rb_hash_delete_key, :rb_block_given_p, :rb_yield
+    <<-END
+      function rb_hash_delete(hash, key) {
+        rb_hash_modify(hash);
+        var val = rb_hash_delete_key(hash, key);
+        if (val != Qundef) { return val; }
+        if (rb_block_given_p()) { return rb_yield(key); }
+        return Qnil;
+      }
+    END
+  end
+  
+  # modified st_delete and st_delete_safe to return arrays instead of using pointers
+  def rb_hash_delete_key
+    add_function :st_delete_safe, :st_delete
+    <<-END
+      function rb_hash_delete_key(hash, key) {
+        var tmp;
+        var val = 0;
+        var ktmp = key;
+        if (hash.iter_lev > 0) {
+          tmp = st_delete_safe(hash.tbl, ktmp, val, Qundef);
+          if (tmp[0]) {
+            FL_SET(hash, HASH_DELETED);
+            return tmp[1];
+          }
+        } else {
+          tmp = st_delete(hash.tbl, ktmp, val);
+          if (tmp[0]) { return tmp[1]; }
+        }
+        return Qundef;
       }
     END
   end
@@ -349,7 +420,7 @@ class Red::MethodCompiler
           hash.ifnone = rb_block_proc();
           FL_SET(hash, HASH_PROC_DEFAULT);
         } else {
-          var tmp = rb_scan_args(argc, argv, "01");
+          var tmp = rb_scan_args(argc, argv, '01');
           ifnone = tmp[1];
           hash.ifnone = ifnone;
         }
@@ -366,6 +437,17 @@ class Red::MethodCompiler
         if (((hash.tbl || 0) === 0) || (hash.tbl.num_entries === 0)) { return rb_str_new("{}"); }
         if (rb_inspecting_p(hash)) { return rb_str_new("{...}"); }
         return rb_protect_inspect(inspect_hash, hash, 0);
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_hash_lookup
+    add_function :st_lookup
+    <<-END
+      function rb_hash_lookup(hash, key) {
+        var tmp = st_lookup(hash.tbl, key);
+        return (tmp[0]) ? tmp[1] : Qnil;
       }
     END
   end
@@ -448,7 +530,7 @@ class Red::MethodCompiler
         var tmp;
         var i;
         if (argc == 1) {
-          tmp = rb_check_convert_type(argv[0], T_HASH, "Hash", "to_hash");
+          tmp = rb_check_convert_type(argv[0], T_HASH, 'Hash', 'to_hash');
           if (!NIL_P(tmp)) {
             hash = hash_alloc0(klass);
             RHASH(hash).tbl = RHASH(tmp).tbl;
@@ -503,7 +585,7 @@ class Red::MethodCompiler
     add_functions :rb_inspecting_p, :rb_str_new, :rb_protect_inspect, :to_s_hash
     <<-END
       function rb_hash_to_s(hash) {
-        if (rb_inspecting_p(hash)) { return rb_str_new("{...}"); };
+        if (rb_inspecting_p(hash)) { return rb_str_new("{...}"); }
         return rb_protect_inspect(to_s_hash, hash, 0);
       }
     END
@@ -550,7 +632,7 @@ class Red::MethodCompiler
     add_function :rb_convert_type
     <<-END
       function to_hash(hash) {
-        return rb_convert_type(hash, T_HASH, "Hash", "to_hash");
+        return rb_convert_type(hash, T_HASH, 'Hash', 'to_hash');
       }
     END
   end

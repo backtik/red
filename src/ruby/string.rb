@@ -18,7 +18,7 @@ class Red::MethodCompiler
     add_method :to_str
     <<-END
       function rb_check_string_type(str) {
-        str = rb_check_convert_type(str, T_STRING, "String", "to_str");
+        str = rb_check_convert_type(str, T_STRING, 'String', 'to_str');
         return str;
       }
     END
@@ -51,7 +51,7 @@ class Red::MethodCompiler
         if (TYPE(obj) == T_STRING) { return obj; }
         var str = rb_funcall(obj, id_to_s, 0);
         if (TYPE(str) != T_STRING) { return rb_any_to_s(obj); }
-        if (OBJ_TAINTED(obj)) OBJ_TAINT(str);
+        if (OBJ_TAINTED(obj)) { OBJ_TAINT(str); }
         return str;
       }
     END
@@ -71,7 +71,7 @@ class Red::MethodCompiler
   
   # verbatim
   def rb_str_aref_m
-    add_function :rb_str_subpat, :rb_str_substr, :rb_raise, :rb_str_aref
+    add_function :rb_str_subpat, :rb_str_substr, :rb_raise, :rb_str_aref, :rb_num2long
     <<-END
       function rb_str_aref_m(argc, argv, str) {
         if (argc == 2) {
@@ -107,7 +107,7 @@ class Red::MethodCompiler
         var l2 = p2.length;
         var len = (l1 > l2) ? l2 : l1;
         var retval = memcmp(p1, p2, len);
-        if (retval == 0) {
+        if (retval === 0) {
           if (l1 == l2) { return 0; }
           if (l1 > l2) { return 1; }
           return -1;
@@ -126,12 +126,12 @@ class Red::MethodCompiler
       function rb_str_cmp_m(str1, str2) {
         var result;
         if (TYPE(str2) != T_STRING) {
-          if (!rb_respond_to(str2, rb_intern("to_str"))) {
+          if (!rb_respond_to(str2, rb_intern('to_str'))) {
             return Qnil;
-          } else if (!rb_respond_to(str2, rb_intern("<=>"))) {
+          } else if (!rb_respond_to(str2, rb_intern('<=>'))) {
             return Qnil;
           } else {
-            var tmp = rb_funcall(str2, rb_intern("<=>"), 1, str1);
+            var tmp = rb_funcall(str2, rb_intern('<=>'), 1, str1);
             if (NIL_P(tmp)) { return Qnil; }
             if (!FIXNUM_P(tmp)) { return rb_funcall(LONG2FIX(0), '-', 1, tmp); }
             result = -FIX2LONG(tmp);
@@ -164,7 +164,7 @@ class Red::MethodCompiler
       function rb_str_equal(str1, str2) {
         if (str1 == str2) { return Qtrue; }
         if (TYPE(str2) != T_STRING) {
-          if (!rb_respond_to(str2, rb_intern("to_str"))) { return Qfalse; }
+          if (!rb_respond_to(str2, rb_intern('to_str'))) { return Qfalse; }
           return rb_equal(str2, str1);
         }
         if ((str1.ptr.length == str2.ptr.length) && (rb_str_cmp(str1, str2) === 0)) { return Qtrue; }
@@ -185,7 +185,7 @@ class Red::MethodCompiler
     END
   end
   
-  # fixed "int" length problem with "& 0x7FFFFFFF"
+  # fixed 'int' length problem with '& 0x7FFFFFFF'
   def rb_str_hash
     <<-END
       function rb_str_hash(str) {
@@ -219,7 +219,7 @@ class Red::MethodCompiler
     add_function :rb_scan_args, :rb_str_replace
     <<-END
       function rb_str_init(argc, argv, str) {
-        var tmp = rb_scan_args(argc, argv, "01");
+        var tmp = rb_scan_args(argc, argv, '01');
         var orig = tmp[1];
         if (tmp[0] == 1) { rb_str_replace(str, orig); }
         return str;
@@ -231,7 +231,7 @@ class Red::MethodCompiler
   def rb_str_inspect
     <<-END
       function rb_str_inspect(str) {
-        return rb_str_new('"' + str.ptr + '"');
+        return rb_str_new("\\x22" + str.ptr + "\\x22");
       }
     END
   end
@@ -243,7 +243,7 @@ class Red::MethodCompiler
       function rb_str_intern(s) {
         var str = s;
         if (!str.ptr || str.ptr.length === 0) { rb_raise(rb_eArgError, "interning empty string"); }
-        if (OBJ_TAINTED(str) && rb_safe_level() >= 1 && !rb_sym_interned_p(str)) { rb_raise(rb_eSecurityError, "Insecure: can't intern tainted string"); }
+        if (OBJ_TAINTED(str) && ruby_safe_level >= 1 && !rb_sym_interned_p(str)) { rb_raise(rb_eSecurityError, "Insecure: can't intern tainted string"); }
         var id = rb_intern(str.ptr);
         return ID2SYM(id);
       }
@@ -271,7 +271,17 @@ class Red::MethodCompiler
     END
   end
   
-  # removed "len" handling
+  # verbatim
+  def rb_str_new5
+    add_function :str_new, :rb_obj_class
+    <<-END
+      function rb_str_new5(obj, ptr, len) {
+        return str_new(rb_obj_class(obj), ptr, len);
+      }
+    END
+  end
+  
+  # removed 'len' handling
   def rb_str_plus
     add_function :rb_str_new
     <<-END
@@ -322,6 +332,17 @@ class Red::MethodCompiler
     END
   end
   
+  # modified to return variable instead of using pointer
+  def rb_str_setter
+    add_function :rb_raise, :rb_id2name
+    <<-END
+      function rb_str_setter(val, id, variable) {
+        if (!NIL_P(val) && (TYPE(val) != T_STRING)) { rb_raise(rb_eTypeError, "value of %s must be String", rb_id2name(id)); }
+        return val;
+      }
+    END
+  end
+  
   # verbatim
   def rb_str_subpat
     add_function :rb_reg_search, :rb_reg_nth_match, :rb_backref_get
@@ -348,7 +369,7 @@ class Red::MethodCompiler
       //}
       //if (beg + len > l) { len = l - beg; }
       //if (len < 0) { len = 0; }
-      //if (len == 0) {
+      //if (len === 0) {
       //  str2 = rb_str_new5(str,0,0);
       //} else if (len > sizeof(struct RString)/2 && (beg + len) == l)) && !FL_TEST(str, STR_ASSOC)) {
       //  str2 = rb_str_new4(str);
@@ -360,6 +381,24 @@ class Red::MethodCompiler
       //}
       //OBJ_INFECT(str2, str);
       //return str2;
+      }
+    END
+  end
+  
+  # removed 'len' handling
+  def rb_str_times
+    add_function :rb_str_new5, :rb_raise, :rb_num2long
+    <<-END
+      function rb_str_times(str, times) {
+        var len = NUM2LONG(times);
+        if (len < 0) { rb_raise(rb_eArgError, "negative argument"); }
+        if (len && ((LONG_MAX / len) < str.ptr.length)) { rb_raise(rb_eArgError, "argument too big"); }
+        str2 = rb_str_new5(str);
+        for (var i = 0; i < len; i += str.ptr.length) {
+          str2.ptr += str.ptr;
+        }
+        OBJ_INFECT(str2, str);
+        return str2;
       }
     END
   end
@@ -392,8 +431,8 @@ class Red::MethodCompiler
     <<-END
       function rb_str_to_i(argc, argv, str) {
         var base;
-        var b = rb_scan_args(argc, argv, "01")[1];
-        if (argc == 0) {
+        var b = rb_scan_args(argc, argv, '01')[1];
+        if (argc === 0) {
           base = 10;
         } else {
           base = NUM2INT(b);
@@ -419,6 +458,29 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def rb_str_to_str
+    add_function :rb_convert_type
+    add_method :to_str
+    <<-END
+      function rb_str_to_str(str) {
+        return rb_convert_type(str, T_STRING, 'String', 'to_str');
+      }
+    END
+  end
+  
+  # removed ELTS_SHARED stuff
+  def rb_string_value
+    add_function :rb_str_to_str
+    <<-END
+      function rb_string_value(obj) {
+        var s = obj;
+        if (TYPE(s) != T_STRING) { obj = rb_str_to_str(s); }
+        return s;
+      }
+    END
+  end
+  
   # CHECK
   def str_alloc
     <<-END
@@ -426,6 +488,19 @@ class Red::MethodCompiler
         var str = NEWOBJ();
         OBJSETUP(str, klass, T_STRING);
         str.ptr = 0;
+        return str;
+      }
+    END
+  end
+  
+  # removed 'len' and 'capa' handling
+  def str_new
+    add_function :rb_raise, :str_alloc
+    <<-END
+      function str_new(klass, ptr, len) {
+        if (len < 0) { rb_raise(rb_eArgError, "negative string size (or size too big)"); }
+        var str = str_alloc(klass);
+        str.ptr = ptr || '';
         return str;
       }
     END

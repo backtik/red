@@ -75,7 +75,7 @@ class Red::MethodCompiler
         var data = {};
         var rklass = klass;
         var oid = id;
-        do { // added to handle "goto again"
+        do { // added to handle 'goto again'
           var goto_again = 0;
           var tmp = rb_get_method_body(klass, id, noex);
           var body = tmp[0];
@@ -87,7 +87,7 @@ class Red::MethodCompiler
             klass = klass.superclass;
             goto_again = 1;
           }
-        } while (goto_again); // added to handle "goto again"
+        } while (goto_again); // added to handle 'goto again'
         while ((rklass != klass) && (FL_TEST(rklass, FL_SINGLETON) || (TYPE(rklass) == T_ICLASS))) {
           rklass = rklass.superclass;
         }
