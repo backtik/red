@@ -20,13 +20,113 @@ class Red::MethodCompiler
           'tm_sec': d.getUTCSeconds(),
           'tm_min': d.getUTCMinutes(),
           'tm_hour': d.getUTCHours(),
+          'tm_wday': d.getUTCDay(),
           'tm_mday': d.getUTCDate(),
           'tm_mon': d.getUTCMonth(),
-          'tm_year': y - 1900,
-          'tm_wday': d.getUTCDay(),
           'tm_yday': Math.floor((d - (new(Date)(y, 0, 1))) / 86400000),
+          'tm_year': y - 1900,
           'tm_isdst': 0
         };
+      }
+    END
+  end
+  
+  # modified string handling, CHECK: missing %Z format
+  def jstrftime
+    <<-END
+      function jstrftime(format, timeptr) {
+        var i;
+        var s = '';
+        var days_a = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        var days_l = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        var months_a = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        var months_l = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        var ampm = ["AM", "PM"];
+        if (!format || !timeptr) { return ''; }
+        if (format.indexOf('%') < 0) { return format; }
+        for (fp = 0; format[fp]; fp++) {
+          if (format[fp] != '%') {
+            s += format[fp];
+            continue;
+          }
+          switch (format[++fp]) {
+            case 'undefined':
+              s += '%';
+              return s;
+            case '%':
+              s += '%';
+              continue;
+            case 'a': /* abbreviated weekday name */
+              s += days_a[timeptr.tm_wday] || '?';
+              break;
+            case 'A': /* full weekday name */
+              s += days_l[timeptr.tm_wday] || '?';
+              break;
+            case 'h': /* abbreviated month name */
+            case 'b': /* abbreviated month name */
+              s += months_a[timeptr.tm_mon] || '?';
+              break;
+            case 'B': /* full month name */
+              s += months_l[timeptr.tm_mon] || '?';
+              break;
+            case 'c': /* appropriate date and time representation */
+              s += jstrftime("%a %b %e %H:%M:%S %Y", timeptr);
+              break;
+            case 'd': /* day of the month, 01 - 31 */
+              s += jsprintf("%02d", [range(1, timeptr.tm_mday, 31)]);
+              break;
+            case 'H': /* hour, 24-hour clock, 00 - 23 */
+              s += jsprintf("%02d", [range(0, timeptr.tm_hour, 23)]);
+              break;
+            case 'I': /* hour, 12-hour clock, 01 - 12 */
+              i = range(0, timeptr.tm_hour, 23);
+              i = (i === 0) ? 12 : (i > 12) ? i - 12 : i;
+              s += jsprintf("%02d", [i]);
+              break;
+            case 'j': /* day of the year, 001 - 366 */
+              s += jsprintf("%03d", [timeptr.tm_yday + 1]);
+              break;
+            case 'm': /* month, 01 - 12 */
+              i = range(0, timeptr.tm_mon, 11);
+              s += jsprintf("%02d", [i + 1]);
+              break;
+            case 'M': /* minute, 00 - 59 */
+              s += jsprintf("%02d", [range(0, timeptr.tm_min, 59)]);
+              break;
+            case 'p': /* am or pm based on 12-hour clock */
+              i = range(0, timeptr.tm_hour, 23);
+              s += ampm[(i < 12) ? 0 : 1];
+              break;
+            case 'S': /* second, 00 - 60 */
+              s += jsprintf("%02d", [range(0, timeptr.tm_sec, 60)]);
+              break;
+            case 'U': /* week of year, Sunday is first day of week */
+              s += jsprintf("%02d", [weeknumber(timeptr, 0)]);
+              break;
+            case 'w': /* weekday, Sunday == 0, 0 - 6 */
+              s += jsprintf("%d", [range(0, timeptr.tm_wday, 6)]);
+              break;
+            case 'W': /* week of year, Monday is first day of week */
+              s += jsprintf("%02d", [weeknumber(timeptr, 1)]);
+              break;
+            case 'x': /* appropriate date representation */
+              s += jstrftime("%m/%d/%y", timeptr);
+              break;
+            case 'X': /* appropriate time representation */
+              s += jstrftime("%H:%M:%S", timeptr);
+              break;
+            case 'y': /* year without a century, 00 - 99 */
+              s += jsprintf("%02d", [timeptr.tm_year % 100]);
+              break;
+            case 'Y': /* year with century */
+              s += jsprintf("%d", [1900 + timeptr.tm_year]);
+              break;
+            default:
+              s += '%' + format[fp];
+              break;
+          }
+        }
+        return s;
       }
     END
   end
@@ -41,11 +141,11 @@ class Red::MethodCompiler
           'tm_sec': d.getSeconds(),
           'tm_min': d.getMinutes(),
           'tm_hour': d.getHours(),
+          'tm_wday': d.getDay(),
           'tm_mday': d.getDate(),
           'tm_mon': d.getMonth(),
-          'tm_year': y - 1900,
-          'tm_wday': d.getDay(),
           'tm_yday': Math.floor((d - (new(Date)(y, 0, 1))) / 86400000),
+          'tm_year': y - 1900,
           'tm_isdst': 1
         };
       }
@@ -146,6 +246,22 @@ class Red::MethodCompiler
     END
   end
   
+  # CHECK MEMCPY HERE
+  def time_init_copy
+    add_function :time_modify, :rb_raise
+    <<-END
+      function time_init_copy(copy, time) {
+        if (copy == time) { return copy; }
+        time_modify(copy);
+        if ((TYPE(time) != T_DATA)) { rb_raise(rb_eTypeError, "wrong argument type"); }
+        GetTimeval(time, tobj);
+        GetTimeval(copy, tcopy);
+        MEMCPY(tcopy, tobj, 1);
+        return copy;
+      }
+    END
+  end
+  
   # verbatim
   def time_localtime
     add_function :time_modify, :rb_raise, :localtime
@@ -226,6 +342,65 @@ class Red::MethodCompiler
     END
   end
   
+  # modified string handling, changed to use jsprintf and jstrftime
+  def time_to_s
+    add_function :time_get_tm, :time_utc_offset, :jstrftime
+    <<-END
+      function time_to_s(time) {
+        var str;
+        GetTimeval(time, tobj);
+        if (tobj.tm_got === 0) { time_get_tm(time, tobj.gmt); }
+        if (tobj.gmt == 1) {
+          str = jstrftime("%a %b %d %H:%M:%S UTC %Y", tobj.tm);
+        } else {
+          var sign = '+';
+          var tmp = time_utc_offset(time);
+          var off = NUM2INT(tmp);
+          if (off < 0) {
+            sign = '-';
+            off = -off;
+          }
+          var str2 = jsprintf("%%a %%b %%d %%H:%%M:%%S %s%02d%02d %%Y", [sign, off / 3600, off % 3600 / 60]);
+          str = jstrftime(str2, tobj.tm);
+        }
+        return rb_str_new(str);
+      }
+    END
+  end
+  
+  # verbatim
+  def time_utc_offset
+    add_function :time_get_tm, :gmtime, :rb_raise
+    <<-END
+      function time_utc_offset(time) {
+        GetTimeval(time, tobj);
+        if (tobj.tm_got === 0) { time_get_tm(time, tobj.gmt); }
+        if (tobj.gmt == 1) {
+          return INT2FIX(0);
+        } else {
+          var off;
+          var l = tobj.tm;
+          var t = tobj.tv.tv_sec;
+          var u = gmtime(t);
+          if (!u) { rb_raise(rb_eArgError, "gmtime error"); }
+          if (l.tm_year != u.tm_year) {
+            off = (l.tm_year < u.tm_year) ? -1 : 1;
+          } else if (l.tm_mon != u.tm_mon) {
+            off = (l.tm_mon < u.tm_mon) ? -1 : 1;
+          } else if (l.tm_mday != u.tm_mday) {
+            off = (l.tm_mday < u.tm_mday) ? -1 : 1;
+          } else {
+            off = 0;
+          }
+          off = (off * 24) + l.tm_hour - u.tm_hour;
+          off = (off * 60) + l.tm_min - u.tm_min;
+          off = (off * 60) + l.tm_sec - u.tm_sec;
+          return LONG2FIX(off);
+        }
+      }
+    END
+  end
+  
   # CHECK; WRONG
   def time_zone
     <<-END
@@ -234,6 +409,18 @@ class Red::MethodCompiler
         if (tobj.tm_got === 0) { time_get_tm(time, tobj.gmt); }
         if (tobj.gmt == 1) { return rb_str_new("UTC"); }
         return rb_str_new("XXX");
+      }
+    END
+  end
+  
+  # verbatim
+  def weeknumber
+    <<-END
+      function weeknumber(timeptr, firstweekday) {
+        var wday = timeptr.tm_wday;
+        if (firstweekday == 1) { wday = (wday === 0) ? 6 : wday - 1; }
+        var ret = (timeptr.tm_yday + 7 - wday) / 7;
+        return (ret < 0) ? 0 : ret;
       }
     END
   end

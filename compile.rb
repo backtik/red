@@ -3490,7 +3490,7 @@ class Red::MethodCompiler
         rb_define_method(rb_cArray, 'to_s', rb_ary_to_s, 0);
         rb_define_method(rb_cStruct, 'to_s', rb_struct_inspect, 0);
         rb_define_method(rb_eException, 'to_s', exc_to_s, 0);
-      //rb_define_method(rb_cTime, "to_s", time_to_s, 0);
+        rb_define_method(rb_cTime, "to_s", time_to_s, 0);
         rb_define_method(rb_cBignum, "to_s", rb_big_to_s, -1);
         rb_define_method(rb_cFloat, 'to_s', flo_to_s, 0);
         rb_define_method(rb_cFalseClass, 'to_s', false_to_s, 0);
@@ -3710,7 +3710,7 @@ class Red::MethodCompiler
     end
     
     def utc_offset
-      $mc.add_function :utc_offset
+      $mc.add_function :time_utc_offset
       <<-END
         rb_define_method(rb_cTime, "utc_offset", time_utc_offset, 0);
       END

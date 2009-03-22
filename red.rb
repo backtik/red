@@ -565,6 +565,7 @@ module Red
         :OBJ_TAINT       => "(FL_ABLE(%1$s)?(%1$s).basic.flags|=FL_TAINT:0)",
         :OBJ_TAINTED     => "(FL_ABLE(%1$s)?(%1$s).basic.flags&FL_TAINT:0)",
         :OBJSETUP        => "((%s).basic={klass:(%s),flags:(%s)})",
+        :range           => "Math.max(%s, Math.min(%s, %s))",
         :rb_int_new      => "rb_int2inum(%s)",
         :return_value    => "do{if((prot_tag.retval=(%s))==Qundef){prot_tag.retval=Qnil;}}while(0)",
         :RETURN          => "throw({goto_flag:finish_flag,value:(%s)})",
