@@ -61,6 +61,17 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def num_eql
+    add_function :rb_equal
+    <<-END
+      function num_eql(x, y) {
+        if (TYPE(x) != TYPE(y)) { return Qfalse; }
+        return rb_equal(x, y);
+      }
+    END
+  end
+  
+  # verbatim
   def num_equal
     add_function :rb_funcall
     add_method :==

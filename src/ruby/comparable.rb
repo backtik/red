@@ -12,8 +12,23 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def cmp_eq
+    add_function :rb_funcall, :rb_cmpint
+    add_method :'<=>'
+    <<-END
+      function cmp_eq(a) {
+        var c = rb_funcall(a[0], cmp, 1, a[1]);
+        if (NIL_P(c)) { return Qnil; }
+        if (rb_cmpint(c, a[0], a[1]) == 0) { return Qtrue; }
+        return Qfalse;
+      }
+    END
+  end
+  
+  # verbatim
   def cmp_equal
-    add_function :rb_rescue, :cmp_failed
+    add_function :rb_rescue, :cmp_failed, :cmp_eq
+    add_method :eql?
     <<-END
       function cmp_equal(x, y) {
         if (x == y) { return Qtrue; }

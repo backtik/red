@@ -166,12 +166,13 @@ class Red::MethodCompiler
     end
     
     def -
-      $mc.add_function :rb_ary_diff, :fix_minus, :flo_minus, :time_minus
+      $mc.add_function :rb_ary_diff, :fix_minus, :flo_minus, :time_minus, :rb_big_minus
       <<-END
+        rb_define_method(rb_cBignum, "-", rb_big_minus, 1);
       //rb_define_method(rb_cTime, "-", time_minus, 1);
       //rb_define_method(rb_cArray, '-', rb_ary_diff, 1);
       //rb_define_method(rb_cFloat, '-', flo_minus, 1);
-      //rb_define_method(rb_cFixnum, '-', fix_minus, 1);
+        rb_define_method(rb_cFixnum, '-', fix_minus, 1);
       END
     end
     
@@ -226,7 +227,7 @@ class Red::MethodCompiler
       $mc.add_functions :rb_mod_cmp, :rb_str_cmp_m, :rb_ary_cmp, :num_cmp,
                         :fix_cmp, :flo_cmp, :time_cmp
       <<-END
-      //rb_define_method(rb_cTime, "<=>", time_cmp, 1);
+        rb_define_method(rb_cTime, "<=>", time_cmp, 1);
       //rb_define_method(rb_cModule, '<=>',  rb_mod_cmp, 1);
       //rb_define_method(rb_cFloat, '<=>', flo_cmp, 1);
       //rb_define_method(rb_cNumeric, '<=>', num_cmp, 1);
@@ -1268,11 +1269,11 @@ class Red::MethodCompiler
         rb_define_method(rb_cElement, 'eql?', elem_eql, 1);
         rb_define_method(rb_cNumeric, 'eql?', num_eql, 1);
         rb_define_method(rb_cStruct, 'eql?', rb_struct_eql, 1);
-        rb_define_method(rb_cRange, 'eql?', range_eql, 1);
-        rb_define_method(rb_cString, 'eql?', rb_str_eql, 1);
-        rb_define_method(rb_cArray, 'eql?', rb_ary_eql, 1);
-        rb_define_method(rb_cHash,'eql?', rb_hash_eql, 1);
-        rb_define_method(rb_cFloat, 'eql?', flo_eql, 1);
+      //rb_define_method(rb_cRange, 'eql?', range_eql, 1);
+      //rb_define_method(rb_cString, 'eql?', rb_str_eql, 1);
+      //rb_define_method(rb_cArray, 'eql?', rb_ary_eql, 1);
+      //rb_define_method(rb_cHash,'eql?', rb_hash_eql, 1);
+      //rb_define_method(rb_cFloat, 'eql?', flo_eql, 1);
         rb_define_method(rb_mKernel, 'eql?', rb_obj_equal, 1);
       END
     end
@@ -1618,7 +1619,7 @@ class Red::MethodCompiler
       <<-END
       //rb_define_method(rb_cRange, 'hash', range_hash, 0);
       //rb_define_method(rb_cStruct, 'hash', rb_struct_hash, 0);
-      //rb_define_method(rb_cTime, "hash", time_hash, 0);
+        rb_define_method(rb_cTime, "hash", time_hash, 0);
         rb_define_method(rb_cString, 'hash', rb_str_hash_m, 0);
         rb_define_method(rb_mKernel, 'hash', rb_obj_id, 0);
         rb_define_method(rb_cFloat, 'hash', flo_hash, 0);
@@ -3405,7 +3406,7 @@ class Red::MethodCompiler
                        :rb_struct_to_a, :time_to_a
       <<-END
         rb_define_method(rb_cStruct, 'to_a', rb_struct_to_a, 0);
-      //rb_define_method(rb_cTime, "to_a", time_to_a, 0);
+        rb_define_method(rb_cTime, "to_a", time_to_a, 0);
         rb_define_method(rb_mEnumerable, 'to_a', enum_to_a, -1);
         rb_define_method(rb_cHash,'to_a', rb_hash_to_a, 0);
         rb_define_method(rb_cNilClass, 'to_a', nil_to_a, 0);

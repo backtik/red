@@ -310,7 +310,7 @@ class Red::MethodCompiler
       function st_insert(table, key, value) {
         var hash_val = do_hash(key, table);
         var bin_pos = hash_val % table.num_bins;
-        if (!hash_val) { console.log(key); }
+        if (!hash_val) { console.log('!!'); console.log(key); }
         var ptr = table.bins[bin_pos];
         if (((ptr || 0) !== 0) && ((ptr.hash != hash_val) || !((key == ptr.key) || (table.type.compare(key, ptr.key) === 0)))) {
           while (((ptr.next || 0) !== 0) && ((ptr.next.hash != hash_val) || !((key == ptr.next.key) || (table.type.compare(key, ptr.next.key) === 0)))) { ptr = ptr.next; }
