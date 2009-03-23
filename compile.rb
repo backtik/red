@@ -80,7 +80,7 @@ class Red::MethodCompiler
       @compiled_methods |= [method]
       result =
     begin
-      Ruby.send(method)
+      Ruby.rubysend(method)
     rescue NoMethodError
       "        console.log(\"undefined Ruby method '%s'\");\n" % method
     end
@@ -92,6 +92,8 @@ class Red::MethodCompiler
   alias add_function add_functions
   
   class << Ruby
+    alias rubysend send
+    
     def _!
       $mc.add_function :name_err_mesg_new, :rb_define_singleton_method
       <<-END
@@ -112,7 +114,7 @@ class Red::MethodCompiler
     def %
       $mc.add_function :rb_str_format_m, :fix_mod, :flo_mod
       <<-END
-      //rb_define_method(rb_cString, '%', rb_str_format_m, 1);
+        rb_define_method(rb_cString, '%', rb_str_format_m, 1);
         rb_define_method(rb_cFixnum, '%', fix_mod, 1);
         rb_define_method(rb_cFloat, '%', flo_mod, 1);
       END
@@ -170,7 +172,7 @@ class Red::MethodCompiler
       <<-END
         rb_define_method(rb_cBignum, '-', rb_big_minus, 1);
         rb_define_method(rb_cTime, '-', time_minus, 1);
-      //rb_define_method(rb_cArray, '-', rb_ary_diff, 1);
+        rb_define_method(rb_cArray, '-', rb_ary_diff, 1);
         rb_define_method(rb_cFloat, '-', flo_minus, 1);
         rb_define_method(rb_cFixnum, '-', fix_minus, 1);
       END
@@ -207,9 +209,9 @@ class Red::MethodCompiler
       $mc.add_function :rb_str_concat, :rb_ary_push, :rb_fix_lshift, :classes_append
       <<-END
         rb_define_method(rb_cClasses, '<<', classes_append, 1);
-      //rb_define_method(rb_cString, '<<', rb_str_concat, 1);
+        rb_define_method(rb_cString, '<<', rb_str_concat, 1);
         rb_define_method(rb_cArray, '<<', rb_ary_push, 1);
-      //rb_define_method(rb_cFixnum, '<<', rb_fix_lshift, 1);
+        rb_define_method(rb_cFixnum, '<<', rb_fix_lshift, 1);
       END
     end
     
@@ -318,14 +320,14 @@ class Red::MethodCompiler
         rb_define_method(rb_cStyles, '[]', styles_aref, 1);
         rb_define_method(rb_cProperties, '[]', prop_aref, 1);
         rb_define_module_function(rb_mDocument, '[]', elem_find, 1);
-      //rb_define_method(rb_cStruct, '[]', rb_struct_aref, 1);
+        rb_define_method(rb_cStruct, '[]', rb_struct_aref, 1);
         rb_define_method(rb_cMethod, '[]', method_call, -1);
-      //rb_define_method(rb_cString, '[]', rb_str_aref_m, -1);
+        rb_define_method(rb_cString, '[]', rb_str_aref_m, -1);
         rb_define_singleton_method(rb_cHash, '[]', rb_hash_s_create, -1);
         rb_define_method(rb_cHash, '[]', rb_hash_aref, 1);
         rb_define_singleton_method(rb_cArray, '[]', rb_ary_s_create, -1);
         rb_define_method(rb_cArray, '[]', rb_ary_aref, -1);
-      //rb_define_method(rb_cFixnum, '[]', fix_aref, 1);
+        rb_define_method(rb_cFixnum, '[]', fix_aref, 1);
         rb_define_method(rb_cProc, '[]', rb_proc_call, -2);
       END
     end
@@ -336,7 +338,7 @@ class Red::MethodCompiler
       <<-END
         rb_define_method(rb_cStyles, '[]=', styles_aset, 2);
         rb_define_method(rb_cProperties, '[]=', prop_aset, 2);
-      //rb_define_method(rb_cStruct, '[]=', rb_struct_aset, 2);
+        rb_define_method(rb_cStruct, '[]=', rb_struct_aset, 2);
         rb_define_method(rb_cHash,'[]=', rb_hash_aset, 2);
       //rb_define_method(rb_cString, '[]=', rb_str_aset_m, -1);
         rb_define_method(rb_cArray, '[]=', rb_ary_aset, -1);
@@ -368,6 +370,20 @@ class Red::MethodCompiler
       END
     end
     
+    def __method__
+      $mc.add_function :rb_f_method_name, :rb_define_global_function
+      <<-END
+        rb_define_global_function('__method__', rb_f_method_name, 0);
+      END
+    end
+    
+    def __send__
+      $mc.add_function :rb_f_send
+      <<-END
+        rb_define_method(rb_mKernel, '__send__', rb_f_send, -1);
+      END
+    end
+    
     def _dump
       $mc.add_function :name_err_mesg_to_str
       <<-END
@@ -379,6 +395,13 @@ class Red::MethodCompiler
       $mc.add_function :rb_define_singleton_method, :name_err_mesg_load
       <<-END
         rb_define_singleton_method(rb_cNameErrorMesg, '_load', name_err_mesg_load, 1);
+      END
+    end
+    
+    def abort
+      $mc.add_function :rb_define_global_function, :rb_f_abort
+      <<-END
+        rb_define_global_function('abort', rb_f_abort, -1);
       END
     end
     
@@ -416,6 +439,13 @@ class Red::MethodCompiler
       $mc.add_function :rb_define_global_function, :rb_f_air_p
       <<-END
         rb_define_global_function('air?', rb_f_air_p, 0);
+      END
+    end
+    
+    def alias_method
+      $mc.add_function :rb_mod_alias_method, :rb_define_private_method
+      <<-END
+        rb_define_private_method(rb_cModule, 'alias_method', rb_mod_alias_method, 2);
       END
     end
     
@@ -562,6 +592,13 @@ class Red::MethodCompiler
       END
     end
     
+    def block_given?
+      $mc.add_function :rb_define_global_function, :rb_f_block_given_p
+      <<-END
+        rb_define_global_function('block_given?', rb_f_block_given_p, 0);
+      END
+    end
+    
     def bind
       $mc.add_function :umethod_bind
       <<-END
@@ -606,6 +643,13 @@ class Red::MethodCompiler
       END
     end
     
+    def caller
+      $mc.add_function :rb_define_global_function, :rb_f_caller
+      <<-END
+        rb_define_global_function('caller', rb_f_caller, -1);
+      END
+    end
+    
     def cancel
       $mc.add_function :req_cancel
       <<-END
@@ -631,6 +675,13 @@ class Red::MethodCompiler
       $mc.add_function :rb_str_casecmp
       <<-END
         rb_define_method(rb_cString, 'casecmp', rb_str_casecmp, 1);
+      END
+    end
+    
+    def catch
+      add_function :rb_define_global_function, :rb_f_catch
+      <<-END
+        rb_define_global_function('catch', rb_f_catch, 1);
       END
     end
     
@@ -779,7 +830,7 @@ class Red::MethodCompiler
       $mc.add_function :rb_hash_clear, :rb_ary_clear, :styles_clear
       <<-END
         rb_define_method(rb_cHash, 'clear', rb_hash_clear, 0);
-      //rb_define_method(rb_cArray, 'clear', rb_ary_clear, 0);
+        rb_define_method(rb_cArray, 'clear', rb_ary_clear, 0);
         rb_define_method(rb_cStyles, 'clear', styles_clear, 0);
       END
     end
@@ -801,11 +852,11 @@ class Red::MethodCompiler
     def clone
       $mc.add_function :rb_obj_clone, :method_clone, :proc_clone
       <<-END
-      //rb_define_method(rb_cBinding, 'clone', proc_clone, 0);
-      //rb_define_method(rb_cMethod, 'clone', method_clone, 0);
+        rb_define_method(rb_cBinding, 'clone', proc_clone, 0);
+        rb_define_method(rb_cMethod, 'clone', method_clone, 0);
         rb_define_method(rb_mKernel, 'clone', rb_obj_clone, 0);
-      //rb_define_method(rb_cUnboundMethod, 'clone', method_clone, 0);
-      //rb_define_method(rb_cProc, 'clone', proc_clone, 0);
+        rb_define_method(rb_cUnboundMethod, 'clone', method_clone, 0);
+        rb_define_method(rb_cProc, 'clone', proc_clone, 0);
       END
     end
     
@@ -897,9 +948,10 @@ class Red::MethodCompiler
     end
     
     def constants
-      $mc.add_function :rb_mod_constants
+      $mc.add_function :rb_mod_constants, :rb_mod_s_constants, :rb_define_singleton_method
       <<-END
         rb_define_method(rb_cModule, 'constants', rb_mod_constants, 0);
+        rb_define_singleton_method(rb_cModule, 'constants', rb_mod_s_constants, 0);
       END
     end
     
@@ -973,6 +1025,13 @@ class Red::MethodCompiler
       $mc.add_function :uevent_s_define, :rb_define_module_function
       <<-END
         rb_define_module_function(rb_mUserEvent, 'define', uevent_s_define, 2);
+      END
+    end
+    
+    def define_method
+      $mc.add_function :rb_define_private_method, :rb_mod_define_method
+      <<-END
+        rb_define_private_method(rb_cModule, 'define_method', rb_mod_define_method, -1);
       END
     end
     
@@ -1096,8 +1155,8 @@ class Red::MethodCompiler
       $mc.add_function :rb_obj_dup, :proc_dup
       <<-END
         rb_define_method(rb_mKernel, 'dup', rb_obj_dup, 0);
-      //rb_define_method(rb_cBinding, 'dup', proc_dup, 0);
-      //rb_define_method(rb_cProc, 'dup', proc_dup, 0);
+        rb_define_method(rb_cBinding, 'dup', proc_dup, 0);
+        rb_define_method(rb_cProc, 'dup', proc_dup, 0);
       END
     end
     
@@ -1105,12 +1164,12 @@ class Red::MethodCompiler
       $mc.add_function :range_each, :rb_hash_each, :rb_str_each_line,
                        :rb_ary_each, :rb_struct_each, :enumerator_each
       <<-END
-      //rb_define_method(rb_cRange, 'each', range_each, 0);
+        rb_define_method(rb_cRange, 'each', range_each, 0);
         rb_define_method(rb_cStruct, 'each', rb_struct_each, 0);
         rb_define_method(rb_cEnumerator, 'each', enumerator_each, 0);
-      //rb_define_method(rb_cHash,'each', rb_hash_each, 0);
+        rb_define_method(rb_cHash,'each', rb_hash_each, 0);
         rb_define_method(rb_cArray, 'each', rb_ary_each, 0);
-      //rb_define_method(rb_cString, 'each', rb_str_each_line, -1);
+        rb_define_method(rb_cString, 'each', rb_str_each_line, -1);
       END
     end
     
@@ -1293,9 +1352,10 @@ class Red::MethodCompiler
     end
     
     def eval
-      $mc.add_function :bind_eval
+      $mc.add_function :bind_eval, :rb_define_global_function, :rb_f_eval
       <<-END
         rb_define_method(rb_cBinding, 'eval', bind_eval, -1);
+        rb_define_global_function('eval', rb_f_eval, -1);
       END
     end
     
@@ -1336,10 +1396,24 @@ class Red::MethodCompiler
       END
     end
     
+    def exit
+      $mc.add_function :rb_define_global_function, :rb_f_exit
+      <<-END
+        rb_define_global_function('exit', rb_f_exit, -1);
+      END
+    end
+    
     def exit_value
       $mc.add_function :localjump_xvalue
       <<-END
         rb_define_method(rb_eLocalJumpError, 'exit_value', localjump_xvalue, 0);
+      END
+    end
+    
+    def extend
+      $mc.add_function :rb_define_method, :rb_obj_extend
+      <<-END
+        rb_define_method(rb_mKernel, 'extend', rb_obj_extend, -1);
       END
     end
     
@@ -1354,6 +1428,13 @@ class Red::MethodCompiler
       $mc.add_functions :rb_obj_dummy, :rb_define_private_method
       <<-END
         rb_define_private_method(rb_cModule, 'extended', rb_obj_dummy, 1);
+      END
+    end
+    
+    def fail
+      $mc.add_function :rb_f_raise, :rb_define_global_function
+      <<-END
+        rb_define_global_function('fail', rb_f_raise, -1);
       END
     end
     
@@ -1527,6 +1608,13 @@ class Red::MethodCompiler
       END
     end
     
+    def global_variables
+      $mc.add_function :rb_define_global_function, :rb_f_global_variables
+      <<-END
+        rb_define_global_function('global_variables', rb_f_global_variables, 0);
+      END
+    end
+    
     def gm
       $mc.add_function :time_s_mkutc
       <<-END
@@ -1695,9 +1783,10 @@ class Red::MethodCompiler
     end
     
     def include
-      $mc.add_function :rb_mod_include, :rb_define_private_method
+      $mc.add_function :rb_mod_include, :rb_define_private_method, :rb_define_singleton_method, :top_include
       <<-END
         rb_define_private_method(rb_cModule, 'include', rb_mod_include, -1);
+        rb_define_singleton_method(ruby_top_self, 'include', top_include, -1);
       END
     end
     
@@ -1710,9 +1799,9 @@ class Red::MethodCompiler
         rb_define_method(rb_cClasses, 'include?', classes_include_p, 1);
         rb_define_method(rb_cHash,'include?', rb_hash_has_key, 1);
         rb_define_method(rb_cArray, 'include?', rb_ary_includes, 1);
-      //rb_define_method(rb_cModule, 'include?', rb_mod_include_p, 1);
-      //rb_define_method(rb_cString, 'include?', rb_str_include, 1);
-      //rb_define_method(rb_mEnumerable, 'include?', enum_member, 1);
+        rb_define_method(rb_cModule, 'include?', rb_mod_include_p, 1);
+        rb_define_method(rb_cString, 'include?', rb_str_include, 1);
+        rb_define_method(rb_mEnumerable, 'include?', enum_member, 1);
       END
     end
     
@@ -1838,8 +1927,8 @@ class Red::MethodCompiler
       $mc.add_function :rb_str_insert, :rb_ary_insert, :elem_insert
       <<-END
         rb_define_method(rb_cElement, 'insert', elem_insert, -1);
-      //rb_define_method(rb_cString, 'insert', rb_str_insert, 2);
-      //rb_define_method(rb_cArray, 'insert', rb_ary_insert, -1);
+        rb_define_method(rb_cString, 'insert', rb_str_insert, 2);
+        rb_define_method(rb_cArray, 'insert', rb_ary_insert, -1);
       END
     end
     
@@ -1861,6 +1950,20 @@ class Red::MethodCompiler
         rb_define_method(rb_cNilClass, 'inspect', nil_inspect, 0);
         rb_define_method(rb_cSymbol, 'inspect', sym_inspect, 0);
         rb_define_method(rb_cUnboundMethod, 'inspect', method_inspect, 0);
+      END
+    end
+    
+    def instance_eval
+      $mc.add_function :rb_obj_instance_eval
+      <<-END
+        rb_define_method(rb_mKernel, 'instance_eval', rb_obj_instance_eval, -1);
+      END
+    end
+    
+    def instance_exec
+      $mc.add_function :rb_obj_instance_exec
+      <<-END
+        rb_define_method(rb_mKernel, 'instance_exec', rb_obj_instance_exec, -1);
       END
     end
     
@@ -1956,6 +2059,13 @@ class Red::MethodCompiler
       END
     end
     
+    def iterator
+      $mc.add_function :rb_define_global_function, :rb_f_block_given_p
+      <<-END
+        rb_define_global_function('iterator?', rb_f_block_given_p, 0);
+      END
+    end
+    
     def join
       $mc.add_function :rb_ary_join_m
       <<-END
@@ -2025,8 +2135,8 @@ class Red::MethodCompiler
       $mc.add_function :rb_hash_size, :rb_str_length, :rb_ary_length, :rb_struct_size
       <<-END
         rb_define_method(rb_cString, 'length', rb_str_length, 0);
-      //rb_define_method(rb_cStruct, 'length', rb_struct_size, 0);
-      //rb_define_method(rb_cHash,'length', rb_hash_size, 0);
+        rb_define_method(rb_cStruct, 'length', rb_struct_size, 0);
+        rb_define_method(rb_cHash,'length', rb_hash_size, 0);
         rb_define_method(rb_cArray, 'length', rb_ary_length, 0);
       END
     end
@@ -2059,6 +2169,13 @@ class Red::MethodCompiler
       END
     end
     
+    def local_variables
+      $mc.add_function :rb_define_global_function, :rb_f_local_variables
+      <<-END
+        rb_define_global_function('local_variables', rb_f_local_variables, 0);
+      END
+    end
+    
     def localtime
       $mc.add_function :time_localtime
       <<-END
@@ -2070,6 +2187,13 @@ class Red::MethodCompiler
       $mc.add_function :rb_f_log
       <<-END
         rb_define_global_function('log', rb_f_log, 1);
+      END
+    end
+    
+    def loop
+      $mc.add_function :rb_define_global_function, :rb_f_loop
+      <<-END
+        rb_define_global_function('loop', rb_f_loop, 0);
       END
     end
     
@@ -2526,9 +2650,10 @@ class Red::MethodCompiler
     end
     
     def private
-      $mc.add_function :rb_mod_private, :rb_define_private_method
+      $mc.add_function :rb_mod_private, :rb_define_private_method, :rb_define_singleton_method, :top_private
       <<-END
         rb_define_private_method(rb_cModule, 'private', rb_mod_private, -1);
+        rb_define_singleton_method(ruby_top_self, 'private', top_private, -1);
       END
     end
     
@@ -2603,9 +2728,10 @@ class Red::MethodCompiler
     end
     
     def public
-      $mc.add_function :rb_mod_public, :rb_define_private_method
+      $mc.add_function :rb_mod_public, :rb_define_private_method, :rb_define_singleton_method, :top_public
       <<-END
         rb_define_private_method(rb_cModule, 'public', rb_mod_public, -1);
+        rb_define_singleton_method(ruby_top_self, 'public', top_public, -1);
       END
     end
     
@@ -2662,6 +2788,13 @@ class Red::MethodCompiler
       <<-END
         rb_define_method(rb_cNumeric, 'quo', num_quo, 1);
         rb_define_method(rb_cFixnum, 'quo', fix_quo, 1);
+      END
+    end
+    
+    def raise
+      $mc.add_function :rb_f_raise, :rb_define_global_function
+      <<-END
+        rb_define_global_function('raise', rb_f_raise, -1);
       END
     end
     
@@ -2777,6 +2910,13 @@ class Red::MethodCompiler
       $mc.add_function :rb_obj_remove_instance_variable, :rb_define_private_method
       <<-END
         rb_define_private_method(rb_mKernel, 'remove_instance_variable', rb_obj_remove_instance_variable, 1);
+      END
+    end
+    
+    def remove_method
+      $mc.add_function :rb_define_private_method, :rb_mod_remove_method
+      <<-END
+        rb_define_private_method(rb_cModule, 'remove_method', rb_mod_remove_method, -1);
       END
     end
     
@@ -2969,13 +3109,20 @@ class Red::MethodCompiler
       END
     end
     
+    def send_
+      $mc.add_function :rb_f_send
+      <<-END
+        rb_define_method(rb_mKernel, 'send', rb_f_send, -1);
+      END
+    end
+    
     def select
       $mc.add_function :enum_find_all, :rb_hash_select, :rb_ary_select, :rb_struct_select
       <<-END
         rb_define_method(rb_cStruct, 'select', rb_struct_select, -1);
-      //rb_define_method(rb_mEnumerable, 'select', enum_find_all, 0);
-      //rb_define_method(rb_cHash,'select', rb_hash_select, 0);
-      //rb_define_method(rb_cArray, 'select', rb_ary_select, 0);
+        rb_define_method(rb_mEnumerable, 'select', enum_find_all, 0);
+        rb_define_method(rb_cHash,'select', rb_hash_select, 0);
+        rb_define_method(rb_cArray, 'select', rb_ary_select, 0);
       END
     end
     
@@ -3387,6 +3534,13 @@ class Red::MethodCompiler
       END
     end
     
+    def throw
+      $mc.add_function :rb_define_global_function, :rb_f_throw
+      <<-END
+        rb_define_global_function('throw', rb_f_throw, -1);
+      END
+    end
+    
     def times
       $mc.add_function :int_dotimes
       <<-END
@@ -3618,6 +3772,13 @@ class Red::MethodCompiler
       $mc.add_function :method_unbind
       <<-END
         rb_define_method(rb_cMethod, 'unbind', method_unbind, 0);
+      END
+    end
+    
+    def undef_method
+      $mc.add_function :rb_define_private_method, :rb_mod_undef_method
+      <<-END
+        rb_define_private_method(rb_cModule, 'undef_method', rb_mod_undef_method, -1);
       END
     end
     
@@ -4046,70 +4207,16 @@ class Red::MethodCompiler
     
     # CHECK
     def Init_eval
-      add_function :rb_define_global_function, :rb_method_node, :rb_f_raise, :errinfo_setter
+      add_function :rb_define_virtual_variable, :rb_define_hooked_variable,
+                   :rb_define_global_function, :rb_method_node,
+                   :errinfo_setter, :errat_getter, :errat_setter,
+                   :rb_undef_method#, :safe_getter, :safe_setter
       <<-END
         function Init_eval() {
-        //rb_global_variable((void *)&top_scope);
-        //rb_global_variable((void *)&ruby_eval_tree_begin);
-
-        //rb_global_variable((void *)&ruby_eval_tree);
-        //rb_global_variable((void *)&ruby_dyna_vars);
-
-        //rb_define_virtual_variable('$@', errat_getter, errat_setter);
+          rb_define_virtual_variable('$@', errat_getter, errat_setter);
           rb_define_hooked_variable('$!', ruby_errinfo, 0, errinfo_setter);
-
-        //rb_define_global_function('eval', rb_f_eval, -1);
-        //rb_define_global_function('iterator?', rb_f_block_given_p, 0);
-        //rb_define_global_function('block_given?', rb_f_block_given_p, 0);
-        //rb_define_global_function('loop', rb_f_loop, 0);
-
-        //rb_define_method(rb_mKernel, 'respond_to?', obj_respond_to, -1);
-        //rb_global_variable((void *)&basic_respond_to);
           basic_respond_to = rb_method_node(rb_cObject, respond_to);
-
-          rb_define_global_function('raise', rb_f_raise, -1);
-          rb_define_global_function('fail', rb_f_raise, -1);
-
-        //rb_define_global_function('caller', rb_f_caller, -1);
-
-        //rb_define_global_function('exit', rb_f_exit, -1);
-        //rb_define_global_function('abort', rb_f_abort, -1);
-
-        //rb_define_global_function('at_exit', rb_f_at_exit, 0);
-
-        //rb_define_global_function('catch', rb_f_catch, 1);
-        //rb_define_global_function('throw', rb_f_throw, -1);
-        //rb_define_global_function('global_variables', rb_f_global_variables, 0); /* in variable.c */
-        //rb_define_global_function('local_variables', rb_f_local_variables, 0);
-
-        //rb_define_global_function('__method__', rb_f_method_name, 0);
-
-        //rb_define_method(rb_mKernel, 'send', rb_f_send, -1);
-        //rb_define_method(rb_mKernel, '__send__', rb_f_send, -1);
-        //rb_define_method(rb_mKernel, 'instance_eval', rb_obj_instance_eval, -1);
-        //rb_define_method(rb_mKernel, 'instance_exec', rb_obj_instance_exec, -1);
-
-        //rb_undef_method(rb_cClass, 'module_function');
-
-        //rb_define_private_method(rb_cModule, 'remove_method', rb_mod_remove_method, -1);
-        //rb_define_private_method(rb_cModule, 'undef_method', rb_mod_undef_method, -1);
-        //rb_define_private_method(rb_cModule, 'alias_method', rb_mod_alias_method, 2);
-        //rb_define_private_method(rb_cModule, 'define_method', rb_mod_define_method, -1);
-
-        //rb_define_singleton_method(rb_cModule, 'constants', rb_mod_s_constants, 0);
-
-        //rb_define_singleton_method(ruby_top_self, 'include', top_include, -1);
-        //rb_define_singleton_method(ruby_top_self, 'public', top_public, -1);
-        //rb_define_singleton_method(ruby_top_self, 'private', top_private, -1);
-
-        //rb_define_method(rb_mKernel, 'extend', rb_obj_extend, -1);
-
-        //rb_define_global_function('trace_var', rb_f_trace_var, -1); /* in variable.c */
-        //rb_define_global_function('untrace_var', rb_f_untrace_var, -1); /* in variable.c */
-
-        //rb_define_global_function('set_trace_func', set_trace_func, 1);
-        //rb_global_variable(&trace_func);
-
+          rb_undef_method(rb_cClass, 'module_function');
         //rb_define_virtual_variable('$SAFE', safe_getter, safe_setter);
         }
       END
@@ -5232,6 +5339,27 @@ class Red::MethodCompiler
             vars = new_dvar(id, value, ruby_dyna_vars.next);
             ruby_dyna_vars.next = vars;
           }
+        }
+      END
+    end
+    
+    # verbatim
+    def errat_getter
+      add_function :get_backtrace
+      <<-END
+        function errat_getter(id) {
+          return get_backtrace(ruby_errinfo);
+        }
+      END
+    end
+    
+    # verbatim
+    def errat_setter
+      add_function :rb_raise, :set_backtrace
+      <<-END
+        function errat_setter(val, id, variable) {
+          if (NIL_P(ruby_errinfo)) { rb_raise(rb_eArgError, "$! not set"); }
+          set_backtrace(ruby_errinfo, val);
         }
       END
     end
@@ -7982,152 +8110,6 @@ class Red::MethodCompiler
     end
   end
   
-  module Variable
-    # verbatim
-    def generic_ivar_defined
-      <<-END
-        function generic_ivar_defined(obj, id) {
-          var data;
-          var val;
-          if (!generic_iv_tbl) { return Qfalse; }
-          if (!(data = generic_iv_tbl[obj])) { return Qfalse; }
-        //if (!st_lookup(generic_iv_tbl, obj, &data)) { return Qfalse; }
-          var tbl = data;
-          if ((val = tbl[id])) { return Qtrue; }
-        //if (st_lookup(tbl, id, &val)) { return Qtrue; }
-          return Qfalse;
-        }
-      END
-    end
-    
-    # removed warning
-    def generic_ivar_get
-      add_function :st_lookup
-      <<-END
-        function generic_ivar_get(obj, id, warn) {
-          var tbl;
-          var val;
-          if (generic_iv_tbl) {
-            if ((tbl = generic_iv_tbl[obj])) { // was st_lookup
-              if ((val = tbl[id])) { return val; }
-            }
-          }
-          // removed warning
-          return Qnil;
-        }
-      END
-    end
-    
-    # verbatim
-    def generic_ivar_set
-      add_functions :rb_special_const_p
-      <<-END
-        function generic_ivar_set(obj, id, val) {
-          var data;
-          var tbl;
-          if (rb_special_const_p(obj)) { special_generic_ivar = 1; }
-          // removed check for generic_iv_tbl
-          if (!(data = generic_iv_tbl[obj.val])) { // was st_lookup
-            FL_SET(obj, FL_EXIVAR);
-            tbl = {}; // was st_init_numtable
-            generic_iv_tbl[obj.val] = tbl; // was st_add_direct
-            tbl[id] = val; // was st_add_direct
-            return;
-          }
-          data[id] = val; // was st_insert
-        }
-      END
-    end
-    
-    # unsupported
-    def rb_alias_variable
-      add_functions :rb_raise
-      <<-END
-        function rb_alias_variable() {
-          rb_raise(rb_eRuntimeError, "Red doesn't support global variable aliasing");
-        }
-      END
-    end
-    
-    # verbatim
-    def rb_copy_generic_ivar
-      add_function :st_lookup, :st_free_table, :st_insert, :st_copy, :st_add_direct
-      <<-END
-        function rb_copy_generic_ivar(clone, obj) {
-          if (!generic_iv_tbl) { return; }
-          if (!FL_TEST(obj, FL_EXIVAR)) { return; }
-          var tmp = st_lookup(generic_iv_tbl, obj);
-          if (tmp[0]) {
-            var tbl = tmp[1];
-            tmp = st_lookup(generic_iv_tbl, clone);
-            if (tmp[0]) {
-              st_free_table(tmp[1]);
-              st_insert(generic_iv_tbl, clone, st_copy(tbl));
-            } else {
-              st_add_direct(generic_iv_tbl, clone, st_copy(tbl));
-            }
-          }
-        }
-      END
-    end
-    
-    # CHECK
-    def rb_define_hooked_variable
-      add_function :global_id, :rb_global_entry, :var_getter, :var_setter
-      <<-END
-        function rb_define_hooked_variable(name, variable, getter, setter) {
-          var id = global_id(name);
-          var gvar = rb_global_entry(id).variable;
-          gvar.data = variable;
-          gvar.getter = getter ? getter : var_getter;
-          gvar.setter = setter ? setter : var_setter;
-        //gvar.marker = var_marker;
-        }
-      END
-    end
-    
-    # verbatim
-    def rb_define_variable
-      add_function :rb_define_hooked_variable
-      <<-END
-        function rb_define_variable(name, vars) {
-          rb_define_hooked_variable(name, vars, 0, 0);
-        }
-      END
-    end
-    
-    # verbatim
-    def rb_gvar_get
-      <<-END
-        function rb_gvar_get(entry) {
-          var variable = entry.variable;
-          return variable.getter(entry.id, variable.data, variable);
-        }
-      END
-    end
-    
-    # verbatim
-    def rb_gvar_set
-      add_function :rb_raise, :rb_ensure
-      <<-END
-        function rb_gvar_set(entry, val) {
-          var trace = {};
-          var variable = entry.variable;
-          if (ruby_safe_level >= 4) { rb_raise(rb_eSecurityError, "Insecure: can't change global variable value"); }
-          variable = variable.setter(val, entry.id, variable.data, variable);
-          if (variable.trace && !variable.block_trace) {
-            variable.block_trace = 1;
-            trace.trace = variable.trace;
-            trace.val = val;
-            rb_ensure(trace_ev, trace, trace_en, variable);
-          }
-          return val;
-        }
-      END
-    end
-  end
-  
   include Boot
   include Eval
-  include Variable
 end

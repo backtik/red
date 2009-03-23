@@ -293,6 +293,21 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def rb_fix_lshift
+    add_function :rb_big_lshift, :rb_int2big, :fix_rshift, :fix_lshift
+    <<-END
+      function rb_fix_lshift(x, y) {
+        long val, width;
+        var val = NUM2LONG(x);
+        if (!FIXNUM_P(y)) { return rb_big_lshift(rb_int2big(val), y); }
+        width = FIX2LONG(y);
+        if (width < 0) { return fix_rshift(val, -width); }
+        return fix_lshift(val, width);
+      }
+    END
+  end
+  
   # CHECK
   def rb_fix_new
     <<-END

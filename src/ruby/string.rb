@@ -145,6 +145,25 @@ class Red::MethodCompiler
   end
   
   # CHECK
+  def rb_str_concat
+    add_function :rb_str_new
+    <<-END
+      function rb_str_concat(str1, str2) {
+        if (FIXNUM_P(str2)) {
+          int i = FIX2INT(str2);
+          if (0 <= i && i <= 0xff) { /* byte */
+            return rb_str_new(str.ptr + String.fromCharCode(i));
+          //return rb_str_cat(str1, &c, 1);
+          }
+        }
+        //str1 = rb_str_append(str1, str2);
+        str1.ptr += str2.ptr;
+        return str1;
+      }
+    END
+  end
+  
+  # CHECK
   def rb_str_dup
     add_function :str_alloc, :rb_obj_class, :rb_str_replace
     <<-END
