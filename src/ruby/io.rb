@@ -40,6 +40,7 @@ class Red::MethodCompiler
     END
   end
   
+  # CHECK
   def lineno_setter
     <<-END
       function lineno_setter(val, id, variable) {

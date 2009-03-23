@@ -18,6 +18,7 @@ require 'src/ruby/nil'
 require 'src/ruby/numeric'
 require 'src/ruby/object'
 require 'src/ruby/parse'
+require 'src/ruby/precision'
 require 'src/ruby/proc'
 require 'src/ruby/range'
 require 'src/ruby/st'
@@ -3109,7 +3110,7 @@ class Red::MethodCompiler
       END
     end
     
-    def send_
+    def send
       $mc.add_function :rb_f_send
       <<-END
         rb_define_method(rb_mKernel, 'send', rb_f_send, -1);
@@ -5353,13 +5354,14 @@ class Red::MethodCompiler
       END
     end
     
-    # verbatim
+    # modified to return variable instead of using pointer
     def errat_setter
       add_function :rb_raise, :set_backtrace
       <<-END
         function errat_setter(val, id, variable) {
           if (NIL_P(ruby_errinfo)) { rb_raise(rb_eArgError, "$! not set"); }
           set_backtrace(ruby_errinfo, val);
+          return val;
         }
       END
     end
@@ -6330,12 +6332,28 @@ class Red::MethodCompiler
       END
     end
     
-    # changed cache handling
+    # modified cache handling
+    def rb_clear_cache_by_class
+      <<-END
+        function rb_clear_cache_by_class(klass) {
+          if (!ruby_running) { return; }
+          for (var x in cache) {
+            var ent = cache[x];
+            if ((ent.klass == klass) || (ent.origin == klass)) { ent.mid = 0; }
+          }
+        }
+      END
+    end
+    
+    # modified cache handling
     def rb_clear_cache_by_id
       <<-END
         function rb_clear_cache_by_id(id) {
           if (!ruby_running) { return; }
-          for (var x in cache) { if (cache[x].mid == id) { cache[x].mid = 0; } }
+          for (var x in cache) {
+            var ent = cache[x];
+            if (ent.mid == id) { ent.mid = 0; }
+          }
         }
       END
     end
@@ -7171,6 +7189,32 @@ class Red::MethodCompiler
       END
     end
     
+    # expanded 'search_method'
+    def rb_export_method
+      add_function :rb_secure, :rb_add_method, :search_method
+      <<-END
+        function rb_export_method(klass, name, noex) {
+          if (klass == rb_cObject) { rb_secure(4); }
+          var tmp = search_method(klass, name);
+          var body = tmp[0];
+          var origin = tmp[1];
+          if (!body && (TYPE(klass) == T_MODULE)) {
+            tmp = search_method(rb_cObject, name);
+            body = tmp[0];
+            origin = tmp[1];
+          }
+          if (!body || !body.nd_body) { print_undef(klass, name); }
+          if (body.nd_noex != noex) {
+            if (klass == origin) {
+              body.nd_noex = noex;
+            } else {
+              rb_add_method(klass, name, NEW_ZSUPER(), noex);
+            }
+          }
+        }
+      END
+    end
+    
     # verbatim
     def rb_f_block_given_p
       <<-END
@@ -7208,6 +7252,21 @@ class Red::MethodCompiler
         function rb_f_raise(argc, argv) {
           rb_raise_jump(rb_make_exception(argc, argv));
           return Qnil; /* not reached */
+        }
+      END
+    end
+    
+    # verbatim
+    def rb_f_send
+      add_function :rb_block_given_p, :rb_call, :rb_to_id
+      <<-END
+        function rb_f_send(argc, argv, recv) {
+          if (argc === 0) { rb_raise(rb_eArgError, "no method name given"); }
+          var retval;
+          PUSH_ITER(rb_block_given_p() ? ITER_PRE : ITER_NOT);
+          retval = rb_call(CLASS_OF(recv), recv, rb_to_id(argv[0]), argc - 1, argv.slice(1), 1, Qundef);
+          POP_ITER();
+          return retval;
         }
       END
     end
@@ -7993,12 +8052,36 @@ class Red::MethodCompiler
     end
     
     # verbatim
+    def secure_visibility
+      add_function :rb_raise
+      <<-END
+        function secure_visibility(self) {
+          if (ruby_safe_level >= 4 && !OBJ_TAINTED(self)) { rb_raise(rb_eSecurityError, "Insecure: can't change method visibility"); }
+        }
+      END
+    end
+    
+    # verbatim
     def set_backtrace
       add_function :rb_funcall, :rb_intern
       add_method :set_backtrace
       <<-END
         function set_backtrace(info, bt) {
           rb_funcall(info, rb_intern('set_backtrace'), 1, bt);
+        }
+      END
+    end
+    
+    # verbatim
+    def set_method_visibility
+      add_function :rb_export_method, :rb_to_id, :rb_clear_cache_by_class, :secure_visibility
+      <<-END
+        function set_method_visibility(self, argc, argv, ex) {
+          secure_visibility(self);
+          for (var i = 0; i < argc; ++i) {
+            rb_export_method(self, rb_to_id(argv[i]), ex);
+          }
+          rb_clear_cache_by_class(self);
         }
       END
     end
@@ -8059,6 +8142,27 @@ class Red::MethodCompiler
           /* no lhs means splat lhs only */
           if (!lhs) { return rb_ary_new3(1, v); }
           return tmp;
+        }
+      END
+    end
+    
+    # verbatim
+    def top_include
+      add_function :rb_secure, :rb_mod_include
+      <<-END
+        function top_include(argc, argv, self) {
+          rb_secure(4);
+          return rb_mod_include(argc, argv, rb_cObject);
+        }
+      END
+    end
+    
+    # verbatim
+    def top_public
+      add_function :rb_mod_public
+      <<-END
+        function top_public(argc, argv) {
+          return rb_mod_public(argc, argv, rb_cObject);
         }
       END
     end

@@ -261,6 +261,22 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def rb_mod_public
+    add_function :secure_visibility, :set_method_visibility
+    <<-END
+      function rb_mod_public(argc, argv, module) {
+        secure_visibility(module);
+        if (argc == 0) {
+          SCOPE_SET(SCOPE_PUBLIC);
+        } else {
+          set_method_visibility(module, argc, argv, NOEX_PUBLIC);
+        }
+        return module;
+      }
+    END
+  end
+  
   # CHECK
   def rb_mod_to_s
     add_function :rb_str_new, :rb_iv_get, :rb_str_cat, :rb_str_append,
