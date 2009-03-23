@@ -156,6 +156,18 @@ class Red::MethodCompiler
     END
   end
   
+  # changed 'lesser' to JS 'Math.min'
+  def rb_str_eql
+    add_function :memcmp
+    <<-END
+      function rb_str_eql(str1, str2) {
+        if ((TYPE(str2) != T_STRING) || (str1.ptr.length != str2.ptr.length)) { return Qfalse; }
+        if (memcmp(str1.ptr, str2.ptr, Math.min(str1.ptr.length, str2.ptr.length)) === 0) { return Qtrue; }
+        return Qfalse;
+      }
+    END
+  end
+  
   # verbatim
   def rb_str_equal
     add_function :rb_respond_to, :rb_intern, :rb_equal, :rb_str_cmp

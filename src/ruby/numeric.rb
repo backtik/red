@@ -133,6 +133,28 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def rb_num2dbl
+    add_function :rb_raise, :rb_Float
+    <<-END
+      function rb_num2dbl(val) {
+        switch (TYPE(val)) {
+          case T_FLOAT:
+            return val.value;
+          case T_STRING:
+            rb_raise(rb_eTypeError, "no implicit conversion to float from string");
+            break;
+          case T_NIL:
+            rb_raise(rb_eTypeError, "no implicit conversion to float from nil");
+            break;
+          default:
+            break;
+        }
+        return rb_Float(val).value;
+      }
+    END
+  end
+  
   # unwound 'goto' structure
   def rb_num2long
     #add_function :rb_raise, :rb_big2long, :rb_to_int

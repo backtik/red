@@ -35,95 +35,65 @@ class Red::MethodCompiler
   def jstrftime
     <<-END
       function jstrftime(format, timeptr) {
-        var i;
-        var s = '';
-        var days_a = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-        var days_l = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-        var months_a = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        var months_l = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-        var ampm = ["AM", "PM"];
         if (!format || !timeptr) { return ''; }
         if (format.indexOf('%') < 0) { return format; }
-        for (fp = 0; format[fp]; fp++) {
+        for (var s = '', fp = 0; format[fp]; fp++) {
           if (format[fp] != '%') {
             s += format[fp];
             continue;
           }
           switch (format[++fp]) {
             case 'undefined':
-              s += '%';
-              return s;
+              s += '%'; return s;
             case '%':
-              s += '%';
-              continue;
+              s += '%'; continue;
             case 'a': /* abbreviated weekday name */
-              s += days_a[timeptr.tm_wday] || '?';
-              break;
+              s += ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][timeptr.tm_wday] || '?'; break;
             case 'A': /* full weekday name */
-              s += days_l[timeptr.tm_wday] || '?';
-              break;
-            case 'h': /* abbreviated month name */
+              s += ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][timeptr.tm_wday] || '?'; break;
             case 'b': /* abbreviated month name */
-              s += months_a[timeptr.tm_mon] || '?';
-              break;
+              s += ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][timeptr.tm_mon] || '?'; break;
             case 'B': /* full month name */
-              s += months_l[timeptr.tm_mon] || '?';
-              break;
+              s += ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][timeptr.tm_mon] || '?'; break;
             case 'c': /* appropriate date and time representation */
-              s += jstrftime("%a %b %e %H:%M:%S %Y", timeptr);
-              break;
+              s += jstrftime("%a %b %e %H:%M:%S %Y", timeptr); break;
             case 'd': /* day of the month, 01 - 31 */
-              s += jsprintf("%02d", [range(1, timeptr.tm_mday, 31)]);
-              break;
+              s += jsprintf("%02d", [range(1, timeptr.tm_mday, 31)]); break;
+            case 'e':	/* day of month, blank padded */
+              s += jsprintf("%2d", [range(1, timeptr.tm_mday, 31)]); break;
             case 'H': /* hour, 24-hour clock, 00 - 23 */
-              s += jsprintf("%02d", [range(0, timeptr.tm_hour, 23)]);
-              break;
+              s += jsprintf("%02d", [range(0, timeptr.tm_hour, 23)]); break;
             case 'I': /* hour, 12-hour clock, 01 - 12 */
-              i = range(0, timeptr.tm_hour, 23);
-              i = (i === 0) ? 12 : (i > 12) ? i - 12 : i;
-              s += jsprintf("%02d", [i]);
+              var h = range(0, timeptr.tm_hour, 23);
+              h = (h === 0) ? 12 : (h > 12) ? h - 12 : h;
+              s += jsprintf("%02d", [h]);
               break;
             case 'j': /* day of the year, 001 - 366 */
-              s += jsprintf("%03d", [timeptr.tm_yday + 1]);
-              break;
+              s += jsprintf("%03d", [timeptr.tm_yday + 1]); break;
             case 'm': /* month, 01 - 12 */
-              i = range(0, timeptr.tm_mon, 11);
-              s += jsprintf("%02d", [i + 1]);
-              break;
+              s += jsprintf("%02d", [range(0, timeptr.tm_mon, 11) + 1]); break;
             case 'M': /* minute, 00 - 59 */
-              s += jsprintf("%02d", [range(0, timeptr.tm_min, 59)]);
-              break;
+              s += jsprintf("%02d", [range(0, timeptr.tm_min, 59)]); break;
             case 'p': /* am or pm based on 12-hour clock */
-              i = range(0, timeptr.tm_hour, 23);
-              s += ampm[(i < 12) ? 0 : 1];
-              break;
+              s += (range(0, timeptr.tm_hour, 23) < 12) ? "AM" : "PM"; break;
             case 'S': /* second, 00 - 60 */
-              s += jsprintf("%02d", [range(0, timeptr.tm_sec, 60)]);
-              break;
+              s += jsprintf("%02d", [range(0, timeptr.tm_sec, 60)]); break;
             case 'U': /* week of year, Sunday is first day of week */
-              s += jsprintf("%02d", [weeknumber(timeptr, 0)]);
-              break;
+              s += jsprintf("%02d", [weeknumber(timeptr, 0)]); break;
             case 'w': /* weekday, Sunday == 0, 0 - 6 */
-              s += jsprintf("%d", [range(0, timeptr.tm_wday, 6)]);
-              break;
+              s += jsprintf("%d", [range(0, timeptr.tm_wday, 6)]); break;
             case 'W': /* week of year, Monday is first day of week */
-              s += jsprintf("%02d", [weeknumber(timeptr, 1)]);
-              break;
+              s += jsprintf("%02d", [weeknumber(timeptr, 1)]); break;
             case 'x': /* appropriate date representation */
-              s += jstrftime("%m/%d/%y", timeptr);
-              break;
+              s += jstrftime("%m/%d/%y", timeptr); break;
             case 'X': /* appropriate time representation */
-              s += jstrftime("%H:%M:%S", timeptr);
-              break;
+              s += jstrftime("%H:%M:%S", timeptr); break;
             case 'y': /* year without a century, 00 - 99 */
-              s += jsprintf("%02d", [timeptr.tm_year % 100]);
-              break;
+              s += jsprintf("%02d", [timeptr.tm_year % 100]); break;
             case 'Y': /* year with century */
-              s += jsprintf("%d", [1900 + timeptr.tm_year]);
-              break;
+              s += jsprintf("%d", [1900 + timeptr.tm_year]); break;
             default:
-              s += '%' + format[fp];
-              break;
+              s += '%' + format[fp]; break;
           }
         }
         return s;
@@ -148,6 +118,63 @@ class Red::MethodCompiler
           'tm_year': y - 1900,
           'tm_isdst': 1
         };
+      }
+    END
+  end
+  
+  # added
+  def rb_time_data
+    add_function :time_get_tm
+    <<-END
+      function rb_time_data(time, name, offset) {
+        GetTimeval(time, tobj);
+        if (tobj.tm_got == 0) { time_get_tm(time, tobj.gmt); }
+        return INT2FIX((tobj.tm['tm_' + name] || 0) + (offset || 0));
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_time_new
+    add_function :time_new_internal
+    <<-END
+      function rb_time_new(sec, usec) {
+        return time_new_internal(rb_cTime, sec, usec);
+      }
+    END
+  end
+  
+  # verbatim
+  def time_add
+    add_function :modf, :rb_raise, :rb_time_new, :rb_num2dbl
+    <<-END
+      function time_add(tobj, offset, sign) {
+        var sec;
+        var v = NUM2DBL(offset);
+        if (v < 0) {
+          v = -v;
+          sign = -sign;
+        }
+        var tmp = modf(v);
+        var d = tmp[0];
+        var sec_off = tmp[1];
+        if (tmp[1] != /* (double) */ sec_off) { rb_raise(rb_eRangeError, "time %s %f out of Time range", sign < 0 ? "-" : "+", v); }
+        var usec_off = (d * 1e6) + 0.5;
+        if (sign < 0) {
+          sec = tobj.tv.tv_sec - sec_off;
+          usec = tobj.tv.tv_usec - usec_off;
+          if (sec > tobj.tv.tv_sec) { rb_raise(rb_eRangeError, "time - %f out of Time range", v); }
+        } else {
+          sec = tobj.tv.tv_sec + sec_off;
+          usec = tobj.tv.tv_usec + usec_off;
+          if (sec < tobj.tv.tv_sec) { rb_raise(rb_eRangeError, "time + %f out of Time range", v); }
+        }
+        var result = rb_time_new(sec, usec);
+        if (tobj.gmt) {
+          GetTimeval(result, tobj);
+          tobj.gmt = 1;
+        }
+        return result;
       }
     END
   end
@@ -232,6 +259,16 @@ class Red::MethodCompiler
     END
   end
   
+  # modified to use 'rb_time_data'
+  def time_hour
+    add_function :rb_time_data
+    <<-END
+      function time_hour(time) {
+        return rb_time_data(time, 'hour');
+      }
+    END
+  end
+  
   # removed 'rb_sys_fail' error check
   def time_init
     add_function :time_modify, :gettimeofday
@@ -284,6 +321,43 @@ class Red::MethodCompiler
     END
   end
   
+  # modified to use 'rb_time_data'
+  def time_mday
+    add_function :rb_time_data
+    <<-END
+      function time_mday(time) {
+        return rb_time_data(time, 'mday');
+      }
+    END
+  end
+  
+  # modified to use 'rb_time_data'
+  def time_min
+    add_function :rb_time_data
+    <<-END
+      function time_min(time) {
+        return rb_time_data(time, 'min');
+      }
+    END
+  end
+  
+  # verbatim
+  def time_minus
+    add_function :rb_float_new, :time_add
+    <<-END
+      function time_minus(time1, time2) {
+        GetTimeval(time1, tobj);
+        if (TYPE(time2) == T_DATA) {
+          GetTimeval(time2, tobj2);
+          var f = tobj.tv.tv_sec - tobj2.tv.tv_sec;
+          f += (tobj.tv.tv_usec - tobj2.tv.tv_usec) * 1e-6;
+          return rb_float_new(f);
+        }
+        return time_add(tobj, time2, -1);
+      }
+    END
+  end
+  
   # verbatim
   def time_modify
     add_function :rb_check_frozen, :rb_raise
@@ -291,6 +365,70 @@ class Red::MethodCompiler
       function time_modify(time) {
         rb_check_frozen(time);
         if (!OBJ_TAINTED(time) && ruby_safe_level >= 4) { rb_raise(rb_eSecurityError, "Insecure: can't modify Time"); }
+      }
+    END
+  end
+  
+  # modified to use 'rb_time_data'
+  def time_mon
+    add_function :rb_time_data
+    <<-END
+      function time_mon(time) {
+        return rb_time_data(time, 'mon', 1);
+      }
+    END
+  end
+  
+  # verbatim
+  def time_new_internal
+    add_function :time_overflow_p
+    <<-END
+      function time_new_internal(klass, sec, usec) {
+        var time = time_s_alloc(klass);
+        GetTimeval(time, tobj);
+        var tmp = [sec, usec];
+        time_overflow_p(tmp);
+        tobj.tv.tv_sec = tmp[0];
+        tobj.tv.tv_usec = tmp[1];
+        return time;
+      }
+    END
+  end
+  
+  # verbatim
+  def time_overflow_p
+    <<-END
+      function time_overflow_p(ary)
+      {
+        var tmp;
+        var sec = ary[0];
+        var usec = ary[1];
+        if (usec >= 1000000) { /* usec positive overflow */
+          tmp = sec + usec / 1000000;
+          usec %= 1000000;
+          if (sec > 0 && tmp < 0) { rb_raise(rb_eRangeError, "out of Time range"); }
+          sec = tmp;
+        }
+        if (usec < 0) { /* usec negative overflow */
+          tmp = sec + (-(-(usec + 1) / 1000000) - 1); /* negative div */
+          usec = (1000000 - (-(usec + 1) % 1000000) - 1); /* negative mod */
+          if (sec < 0 && tmp > 0) { rb_raise(rb_eRangeError, "out of Time range"); }
+          sec = tmp;
+        }
+        ary[0] = sec;
+        ary[1] = usec;
+      }
+    END
+  end
+  
+  # verbatim
+  def time_plus
+    add_function :time_add, :rb_raise
+    <<-END
+      function time_plus(time1, time2) {
+        GetTimeval(time1, tobj);
+        if (TYPE(time2) == T_DATA) { rb_raise(rb_eTypeError, "time + time?"); }
+        return time_add(tobj, time2, 1);
       }
     END
   end
@@ -305,6 +443,29 @@ class Red::MethodCompiler
         tobj.tv.tv_sec = 0;
         tobj.tv.tv_usec = 0;
         return obj;
+      }
+    END
+  end
+  
+  # modified to use 'rb_time_data'
+  def time_sec
+    add_function :rb_time_data
+    <<-END
+      function time_sec(time) {
+        return rb_time_data(time, 'sec');
+      }
+    END
+  end
+  
+  # modified string handling, using jstrftime instead of rb_strftime
+  def time_strftime
+    <<-END
+      function time_strftime(time, format) {
+        GetTimeval(time, tobj);
+        if (tobj.tm_got === 0) { time_get_tm(time, tobj.gmt); }
+        rb_string_value(format);
+      //removed rb_str_new4
+        return rb_str_new(jstrftime(format.ptr, tobj.tm));
       }
     END
   end
@@ -397,6 +558,36 @@ class Red::MethodCompiler
           off = (off * 60) + l.tm_sec - u.tm_sec;
           return LONG2FIX(off);
         }
+      }
+    END
+  end
+  
+  # modified to use 'rb_time_data'
+  def time_wday
+    add_function :rb_time_data
+    <<-END
+      function time_wday(time) {
+        return rb_time_data(time, 'wday');
+      }
+    END
+  end
+  
+  # modified to use 'rb_time_data'
+  def time_yday
+    add_function :rb_time_data
+    <<-END
+      function time_yday(time) {
+        return rb_time_data(time, 'yday', 1);
+      }
+    END
+  end
+  
+  # modified to use 'rb_time_data'
+  def time_year
+    add_function :rb_time_data
+    <<-END
+      function time_year(time) {
+        return rb_time_data(time, 'year', 1900);
       }
     END
   end

@@ -159,6 +159,18 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def bigzero_p
+    <<-END
+      function bigzero_p(x) {
+        for (var i = 0, l = x.len; i < l; ++i) {
+          if (BDIGITS(x)[i]) { return 0; }
+        }
+        return 1;
+      }
+    END
+  end
+  
   # CHECK THIS - DON'T KNOW WHAT 'digits[i]' IS SUPPOSED TO DO
   def dbl2big
     add_function :isinf, :isnan, :rb_raise, :bignew

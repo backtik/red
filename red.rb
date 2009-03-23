@@ -558,6 +558,7 @@ module Red
         :NIL_P           => "((%s)==Qnil)",
         :NOEX_SAFE       => "((%s)>>4)",
         :NOEX_WITH       => "((%s)|(%s)<<4)",
+        :NUM2DBL         => "rb_num2dbl(%s)",
         :NUM2INT         => "(((%1$s)&FIXNUM_FLAG)?((%1$s)>>1):rb_num2long(%1$s))",
         :NUM2LONG        => "(((%1$s)&FIXNUM_FLAG)?((%1$s)>>1):rb_num2long(%1$s))",
         :OBJ_FROZEN      => "(FL_ABLE(%1$s)?(%1$s).basic.flags&FL_FREEZE:0)",

@@ -81,6 +81,22 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def flo_eql
+    add_function :isnan
+    <<-END
+      function flo_eql(x, y) {
+        if (TYPE(y) == T_FLOAT) {
+          var a = x.value;
+          var b = y.value;
+          if (isnan(a) || isnan(b)) { return Qfalse; }
+          if (a == b) { return Qtrue; }
+        }
+        return Qfalse;
+      }
+    END
+  end
+  
   def flo_ge
     add_function :rb_big2dbl, :isnan, :rb_num_coerce_relop
     <<-END
@@ -372,6 +388,17 @@ class Red::MethodCompiler
     <<-END
       function isnan(d) {
         return String(d) === 'NaN';
+      }
+    END
+  end
+  
+  # added; returns array [integer_part, fractional_part]
+  def modf
+    <<-END
+      function modf(x) {
+        var i = (x > 0) ? Math.floor(x) : Math.ceil(x);
+        var f = (x + 1e-16) - (i - 1e-16);
+        return [i, f];
       }
     END
   end

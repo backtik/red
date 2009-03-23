@@ -305,6 +305,19 @@ class Red::MethodCompiler
     END
   end
   
+  # renamed 'recursive_eql' to 'ary_recursive_eql'
+  def rb_ary_eql
+    add_function :rb_exec_recursive, :ary_recursive_eql
+    <<-END
+      function rb_ary_eql(ary1, ary2) {
+        if (ary1 == ary2) { return Qtrue; }
+        if (TYPE(ary2) != T_ARRAY) { return Qfalse; }
+        if (ary1.ptr.length != ary2.ptr.length) { return Qfalse; }
+        return rb_exec_recursive(ary_recursive_eql, ary1, ary2);
+      }
+    END
+  end
+  
   # verbatim
   def rb_ary_equal
     add_function :rb_respond_to, :rb_intern, :rb_equal, :rb_exec_recursive, :recursive_equal

@@ -352,6 +352,16 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def rb_hash_eql
+    add_function :hash_equal
+    <<-END
+      function rb_hash_eql(hash1, hash2) {
+        return hash_equal(hash1, hash2, Qtrue);
+      }
+    END
+  end
+  
+  # verbatim
   def rb_hash_equal
     add_function :hash_equal
     <<-END

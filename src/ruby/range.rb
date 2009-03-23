@@ -56,6 +56,21 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def range_eql
+    add_function :rb_obj_is_instance_of, :rb_obj_class, :rb_eql, :rb_ivar_get
+    <<-END
+      function range_eql(range, obj) {
+        if (range == obj) { return Qtrue; }
+        if (!rb_obj_is_instance_of(obj, rb_obj_class(range))) { return Qfalse; }
+        if (!rb_eql(rb_ivar_get(range, id_beg), rb_ivar_get(obj, id_beg))) { return Qfalse; }
+        if (!rb_eql(rb_ivar_get(range, id_end), rb_ivar_get(obj, id_end))) { return Qfalse; }
+        if (EXCL(range) != EXCL(obj)) { return Qfalse; }
+        return Qtrue;
+      }
+    END
+  end
+  
+  # verbatim
   def range_failed
     add_function :rb_raise
     <<-END
