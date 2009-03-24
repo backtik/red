@@ -175,6 +175,13 @@ class Red::MethodCompiler
     END
   end
   
+  # EMPTY
+  def rb_str_each_line
+    <<-END
+      function rb_str_each_line() {}
+    END
+  end
+  
   # changed 'lesser' to JS 'Math.min'
   def rb_str_eql
     add_function :memcmp
@@ -416,6 +423,45 @@ class Red::MethodCompiler
     END
   end
   
+  # 
+  def rb_str_succ
+    <<-END
+      function rb_str_succ(orig) {
+        char *s;
+        int c = -1;
+        long n = 0;
+        var str = rb_str_new5(orig, orig.ptr, orig.ptr.length);
+        OBJ_INFECT(str, orig);
+        if (str.ptr.length === 0) { return str; }
+        var c = -1;
+        var n = 0;
+        var sp = str.ptr;
+        var s = str.ptr.length - 1;
+        while (s > -1) {
+          if (ISALNUM(sp[s])) {
+            if ((c = succ_char(s)) === 0) { break; }
+            n = s;
+          }
+          s--;
+        }
+        if (c == -1) { /* str contains no alnum */
+          s = str.ptr.length - 1;
+          c = '\001';
+          while (s > -1) {
+            if ((*s += 1) != 0) { break; }
+            s--;
+          }
+        }
+        if (s < 0) {
+          s = n;
+          memmove(s + 1, s, str.ptr.length - n);
+          sp[s] = c;
+        }
+        return str;
+      }
+    END
+  end
+  
   # removed 'len' handling
   def rb_str_times
     add_function :rb_str_new5, :rb_raise, :rb_num2long
@@ -516,7 +562,7 @@ class Red::MethodCompiler
   def str_alloc
     <<-END
       function str_alloc(klass) {
-        var str = NEWOBJ();
+        NEWOBJ(str);
         OBJSETUP(str, klass, T_STRING);
         str.ptr = 0;
         return str;
@@ -543,6 +589,31 @@ class Red::MethodCompiler
     <<-END
       function str_to_id(str) {
         return SYM2ID(rb_str_intern(str));
+      }
+    END
+  end
+  
+  # modified to return [rollover, s] instead of using pointer
+  def succ_char
+    <<-END
+      function succ_char(s) {
+        var rollover = 0;
+        var c = s;
+        if (('0' <= c) && (c < '9')) { /* numerics */
+          s = (+s + 1).toString();
+        } else if (c == '9') {
+          s = '0';
+          rollover = '1';
+        } else if ('a' <= c && c < 'z') { /* small alphabets */
+          s = String.fromCharCode(s.charCodeAt(0) + 1);
+        } else if (c == 'z') {
+          rollover = 'a';
+        } else if ('A' <= c && c < 'Z') { /* capital alphabets */
+          s = String.fromCharCode(s.charCodeAt(0) + 1);
+        } else if (c == 'Z') {
+          rollover = 'A';
+        }
+        return [rollover, s];
       }
     END
   end

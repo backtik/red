@@ -407,7 +407,7 @@ class Red::MethodCompiler
   def rb_float_new
     <<-END
       function rb_float_new(d) {
-        var flt = NEWOBJ();
+        NEWOBJ(flt);
         OBJSETUP(flt, rb_cFloat, T_FLOAT);
         flt.value = d;
         return flt;

@@ -83,7 +83,7 @@ class Red::MethodCompiler
   def bignew
     <<-END
       function bignew_1(klass, len, sign) {
-        var big = NEWOBJ();
+        NEWOBJ(big);
         OBJSETUP(big, klass, T_BIGNUM);
         big.sign = sign ? 1 : 0;
         big.len = len;

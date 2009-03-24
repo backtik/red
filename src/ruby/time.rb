@@ -471,6 +471,21 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def time_succ
+    add_function :rb_time_new
+    <<-END
+      function time_succ(time) {
+        GetTimeval(time, tobj);
+        var gmt = tobj.gmt;
+        time = rb_time_new(tobj.tv.tv_sec + 1, tobj.tv.tv_usec);
+        GetTimeval(time, tobj);
+        tobj.gmt = gmt;
+        return time;
+      }
+    END
+  end
+  
+  # verbatim
   def time_to_a
     add_function :time_get_tm, :rb_ary_new3, :time_zone
     <<-END

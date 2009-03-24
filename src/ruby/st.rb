@@ -138,23 +138,25 @@ class Red::MethodCompiler
           if (value !== 0) { value = 0; }
           result = 0;
         }
-        if ((key == ptr.key) || (table.type.compare(key, ptr.key) === 0)) {
-          table.bins[hash_val] = ptr.next;
-          table.num_entries--;
-          if (value !== 0) { value = ptr.record; }
-          key = ptr.key;
-          delete(ptr);
-          result = 1;
-        }
-        for(; (ptr.next || 0) !== 0; ptr = ptr.next) {
-          if ((ptr.next.key == key) || (table.type.compare(ptr.next.key, key) === 0)) {
-            var tmp = ptr.next;
-            ptr.next = ptr.next.next;
+        if (ptr) {
+          if ((key == ptr.key) || (table.type.compare(key, ptr.key) === 0)) {
+            table.bins[hash_val] = ptr.next;
             table.num_entries--;
-            if (value !== 0) { value = tmp.record; }
-            key = tmp.key;
-            delete(tmp);
+            if (value !== 0) { value = ptr.record; }
+            key = ptr.key;
+            delete(ptr);
             result = 1;
+          }
+          for(; (ptr.next || 0) !== 0; ptr = ptr.next) {
+            if ((ptr.next.key == key) || (table.type.compare(ptr.next.key, key) === 0)) {
+              var tmp = ptr.next;
+              ptr.next = ptr.next.next;
+              table.num_entries--;
+              if (value !== 0) { value = tmp.record; }
+              key = tmp.key;
+              delete(tmp);
+              result = 1;
+            }
           }
         }
         return [result, value];

@@ -10,7 +10,7 @@ class Red::MethodCompiler
         if (!proc && ruby_block.block_obj && (CLASS_OF(ruby_block.block_obj) == klass)) { return ruby_block.block_obj; }
       //var block = Data_Make_Struct(klass, BLOCK, blk_mark, blk_free, data);
         var data = ruby_block;
-        var block = NEWOBJ();
+        NEWOBJ(block);
         OBJSETUP(block, klass, T_DATA);
         block.data = data;
       //data.orig_thread = rb_thread_current();
@@ -74,9 +74,9 @@ class Red::MethodCompiler
         }
         var data = proc.data;
         var pcall = (data.flags & BLOCK_LAMBDA) ? YIELD_LAMBDA_CALL : 0;
-        if (!pcall && args.ptr.length == 1) {
+        if (!pcall && (args.ptr.length == 1)) {
           avalue = Qfalse;
-          args = args.ptr;
+          args = args.ptr[0]; // CHECK - THIS MAY BE WRONG
         }
         PUSH_VARS();
         ruby_dyna_vars = data.dyna_vars;
@@ -101,7 +101,7 @@ class Red::MethodCompiler
         PUSH_TAG(pcall ? PROT_LAMBDA : PROT_NONE);
         try {
           proc_set_safe_level(proc);
-          result = rb_yield_0(args[0], self, (self != Qundef) ? CLASS_OF(self) : 0, pcall | YIELD_PROC_CALL, avalue);
+          result = rb_yield_0(args, self, (self != Qundef) ? CLASS_OF(self) : 0, pcall | YIELD_PROC_CALL, avalue);
         //result = rb_yield_0(args, self, (self != Qundef) ? CLASS_OF(self) : 0, pcall | YIELD_PROC_CALL, avalue);
         } catch (x) {
           if (typeof(state = x) != 'number') { throw(state); }
@@ -189,9 +189,9 @@ class Red::MethodCompiler
         var str = rb_str_new();
         var data = self.data;
         if ((node = data.frame.node) || (node = data.body)) {
-          p = jsprintf("#<%s:0x%x@%s:%d>", [cname, data.body.rvalue, node.ndfile, nd_line(node)]);
+          str.ptr = jsprintf("#<%s:0x%x@%s:%d>", [cname, data.body.rvalue, node.nd_file, nd_line(node)]);
         } else {
-          p = jsprintf("#<%s:0x%x>", [cname, data.body.rvalue]);
+          str.ptr = jsprintf("#<%s:0x%x>", [cname, data.body.rvalue]);
         }
         if (OBJ_TAINTED(self)) { OBJ_TAINT(str); }
         return str;
@@ -208,17 +208,16 @@ class Red::MethodCompiler
     END
   end
   
-  # CHECK
+  # removed check against 'dfree' function
   def rb_obj_is_proc
     <<-END
       function rb_obj_is_proc(proc) {
-      //if (TYPE(proc) == T_DATA && RDATA(proc)->dfree == (RUBY_DATA_FUNC)blk_free) {
         return (TYPE(proc) == T_DATA) ? Qtrue : Qfalse;
       }
     END
   end
   
-  # CHECK
+  # verbatim
   def rb_proc_call
     add_function :proc_invoke
     <<-END
@@ -232,9 +231,9 @@ class Red::MethodCompiler
   def rb_proc_new
     add_function :rb_iterate, :mproc
     <<-END
-      function rb_proc_new(func, val) {/* VALUE yieldarg[, VALUE procarg] */
+      function rb_proc_new(func, val) { /* VALUE yieldarg[, VALUE procarg] */
         var proc = rb_iterate(mproc, 0, func, val);
-        var data = proc.data;
+        Data_Get_Struct(proc, data);
         data.body.nd_state = YIELD_FUNC_LAMBDA;
         data.flags |= BLOCK_LAMBDA;
         return proc;

@@ -531,6 +531,7 @@ module Red
         :BIGZEROP        => "((%1$s).len == 0 || (((%1$s).digits[0] === 0) && (((%1$s).len == 1) || bigzero_p(%1$s))))",
         :bignew          => "bignew_1(rb_cBignum,%s,%s)",
         :BUILTIN_TYPE    => "((%s).basic.flags&T_MASK)",
+        :Data_Get_Struct => "do{rb_check_type(%1$s,T_DATA);var %2$s=%1$s.data;}while(0)",
         :do_hash         => "((%2$s).type.hash(%1$s))",
         :EXPR1           => "((((%s)>>3)^(%s))&CACHE_MASK)",
         :FIX2INT         => "((%s)>>1)",
@@ -554,7 +555,7 @@ module Red
         :nd_set_line     => "((%1$s).flags=(((%1$s).flags&~(-1<<NODE_LSHIFT))|(((%2$s)&NODE_LMASK)<<NODE_LSHIFT)))",
         :nd_type         => "(((%s).flags>>FL_USHIFT)&0xff)",
         :NEW_NODE        => "rb_node_newnode(%s,%s,%s,%s)",
-        :NEWOBJ          => "{rvalue:last_value+=4}",
+        :NEWOBJ          => "var %s={rvalue:last_value+=4}",
         :NIL_P           => "((%s)==Qnil)",
         :NOEX_SAFE       => "((%s)>>4)",
         :NOEX_WITH       => "((%s)|(%s)<<4)",
@@ -987,6 +988,15 @@ module Red
       when 'Symbol'
         self << "r(%s,%s,'%s')" % [$line, 0xff, value]
       end
+    end
+  end
+  
+  class Masgn < String
+    def initialize(args_array_sexp, rest_arg_sexp, value_sexp, options)
+      args_array = args_array_sexp.red!
+      rest_arg = rest_arg_sexp.red!
+      value = value_sexp.red!
+      self << "r(%s,%s,%s,%s,%s)" % [$line, TYPES[:NODE_MASGN], args_array, rest_arg, value]
     end
   end
   

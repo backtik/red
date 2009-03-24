@@ -139,6 +139,9 @@ function r(line,type,a,b,c) {
     case NODE_LVAR:
       return NEW_LVAR(rb_intern(a));
     
+    case NODE_MASGN:
+      return NEW_MASGN(a, b);
+    
     case NODE_MODULE:
       return NEW_MODULE(a, b);
     

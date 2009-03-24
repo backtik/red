@@ -3641,6 +3641,7 @@ class Red::MethodCompiler
                         :rb_struct_inspect, :elem_to_s, :time_to_s,
                         :rb_big_to_s
       <<-END
+        rb_define_method(rb_cProc, 'to_s', proc_to_s, 0);
         rb_define_method(rb_cElement, 'to_s', elem_to_s, 0);
         rb_define_method(rb_cArray, 'to_s', rb_ary_to_s, 0);
         rb_define_method(rb_cStruct, 'to_s', rb_struct_inspect, 0);
@@ -4997,7 +4998,7 @@ class Red::MethodCompiler
   module Eval
     # left some node types unimplemented
     def assign
-      add_function :dvar_asgn, :dvar_asgn_curr
+      add_function :dvar_asgn, :dvar_asgn_curr, :massign, :svalue_to_mrhs
       <<-END
         function assign(self, lhs, val, pcall) {
           ruby_current_node = lhs;
@@ -5012,6 +5013,9 @@ class Red::MethodCompiler
             case NODE_LASGN:
               // removed bug warning
               ruby_scope.local_vars[lhs.nd_cnt] = val;
+              break;
+            case NODE_MASGN:
+              massign(self, lhs, svalue_to_mrhs(val, lhs.nd_head), pcall);
               break;
             default:
               console.log('unimplemented node type in rb_assign: 0x%s', nd_type(lhs).toString(16));
@@ -5818,7 +5822,7 @@ class Red::MethodCompiler
     def new_dvar
       <<-END
         function new_dvar(id, value, prev) {
-          var vars = NEWOBJ();
+          NEWOBJ(vars);
           OBJSETUP(vars, 0, T_VARMAP);
           vars.id = id;
           vars.val = value;
@@ -6429,7 +6433,7 @@ class Red::MethodCompiler
                    :rb_hash_aset, :rb_alias, :rb_to_id, :rb_ary_new,
                    :local_tbl, :module_setup, :class_prefix, :rb_copy_node_scope,
                    :rb_const_get_from, :rb_gvar_set, :rb_gvar_get, :rb_global_entry,
-                   :handle_rescue
+                   :handle_rescue, :massign
       add_method :[]=
       <<-END
         function rb_eval(self, node) {
@@ -6448,7 +6452,7 @@ class Red::MethodCompiler
                   rb_alias(ruby_class, rb_to_id(rb_eval(self, node.nd_1st)), rb_to_id(rb_eval(self, node.nd_2nd)));
                   result = Qnil;
                   break;
-
+                
                 case NODE_AND:
                   result = rb_eval(self, node.nd_1st);
                   if (!RTEST(result)) { break; }
@@ -6495,7 +6499,7 @@ class Red::MethodCompiler
                 case NODE_BREAK:
                   break_jump(rb_eval(self, node.nd_stts));
                   break;
-
+                
                 // verbatim
                 case NODE_BLOCK:
                   if (contnode) {
@@ -6505,7 +6509,7 @@ class Red::MethodCompiler
                   contnode = node.nd_next;
                   node = node.nd_head;
                   throw({ goto_flag: again_flag }); // was 'goto again'
-
+                
                 case NODE_BLOCK_ARG:
                   if (rb_block_given_p()) {
                     result = rb_block_proc();
@@ -6514,12 +6518,12 @@ class Red::MethodCompiler
                     result = Qnil;
                   }
                   break;
-
+                
                 // verbatim
                 case NODE_BLOCK_PASS:
                   result = block_pass(self, node);
                   break;
-
+                
                 case NODE_CALL:
                   var recv;
                   var argc;
@@ -6532,7 +6536,7 @@ class Red::MethodCompiler
                   ruby_current_node = node;
                   result = rb_call(CLASS_OF(recv), recv, node.nd_mid, argc, argv, 0, self);
                   break;
-
+                
                 case NODE_CDECL:
                   //u1: vid         (v)     if not zero, only need value and vid; if zero, need value, else, and else.nd_mid
                   //u2: value/mid   (val)   value is always needed; mid is taken from else when else is needed
@@ -6549,7 +6553,7 @@ class Red::MethodCompiler
                     rb_const_set(ruby_cbase, node.nd_vid, result);
                   }
                   break;
-
+                
                 // verbatim
                 case NODE_CASE:
                   var val = rb_eval(self, node.nd_head);
@@ -6582,20 +6586,20 @@ class Red::MethodCompiler
                   }
                   RETURN(Qnil);
                   break;
-
+                
                 case NODE_CLASS:
                   var superclass;
                   var gen = Qfalse;
                   var cbase = class_prefix(self, node.nd_cpath);
                   var cname = node.nd_cpath.nd_mid;
-
+                  
                   if (node.nd_super) {
                     superclass = rb_eval(self, node.nd_super);
                     rb_check_inheritable(superclass);
                   } else {
                     superclass = 0;
                   }
-
+                  
                   if (rb_const_defined_at(cbase, cname)) {
                     var klass = rb_const_get_at(cbase, cname);
                     if (TYPE(klass) != T_CLASS) { rb_raise(rb_eTypeError, "%s is not a class", rb_id2name(cname)); }
@@ -6612,11 +6616,11 @@ class Red::MethodCompiler
                     rb_const_set(cbase, cname, klass);
                     gen = Qtrue;
                   }
-
+                  
                   if (superclass && gen) { rb_class_inherited(superclass, klass); }
                   result = module_setup(klass, node);
                   break;
-
+                
                 case NODE_COLON2:
                   var klass = rb_eval(self, node.nd_head);
                   switch (TYPE(klass)) {
@@ -6628,35 +6632,35 @@ class Red::MethodCompiler
                       rb_raise(rb_eTypeError, "%s is not a class/module", rb_obj_as_string(klass).ptr);
                   }
                   break;
-
+                
                 case NODE_COLON3:
                   result = rb_const_get_from(rb_cObject, node.nd_mid);
                   break;
-
+                
                 case NODE_CONST:
                   result = ev_const_get(ruby_cref, node.nd_vid, self);
                   break;
-
+                
                 case NODE_CVAR:
                   result = rb_cvar_get(cvar_cbase(), node.nd_vid);
                   break;
-
+                
                 case NODE_CVASGN:
                 case NODE_CVDECL:
                   result = rb_eval(self, node.nd_value);
                   rb_cvar_set(cvar_cbase(), node.nd_vid, result);
                   break;
-
+                
                 case NODE_DASGN_CURR:
                   result = rb_eval(self, node.nd_value);
                   dvar_asgn_curr(node.nd_vid, result);
                   break;
-
+                
                 case NODE_DEFINED:
                   var desc = is_defined(self, node.nd_head);
                   result = desc ? rb_str_new(desc) : Qnil;
                   break;
-
+                
                 case NODE_DEFN:
                   if (node.nd_defn) {
                     rb_frozen_class_p(ruby_class);
@@ -6678,7 +6682,7 @@ class Red::MethodCompiler
                     result = Qnil;
                   }
                   break;
-
+                
                 case NODE_DEFS:
                   if (node.nd_defn) {
                     var data;
@@ -6698,14 +6702,14 @@ class Red::MethodCompiler
                     result = Qnil;
                   }
                   break;
-
+                
                 case NODE_DOT2:
                 case NODE_DOT3:
                   var beg = rb_eval(self, node.nd_beg);
                   var end = rb_eval(self, node.nd_end);
                   result = rb_range_new(beg, end, nd_type(node) == NODE_DOT3);
                   break;
-
+                
                 case NODE_DREGX:
                 case NODE_DREGX_ONCE:
                 case NODE_DSTR:
@@ -6747,11 +6751,11 @@ class Red::MethodCompiler
                       result = str;
                   }
                   break;
-
+                
                 case NODE_DVAR:
                   result = rb_dvar_ref(node.nd_vid);
                   break;
-
+                
                 // verbatim
                 case NODE_ENSURE:
                   PUSH_TAG(PROT_NONE);
@@ -6770,7 +6774,7 @@ class Red::MethodCompiler
                   }
                   if (state) { JUMP_TAG(state); }
                   break;
-
+                
                 case NODE_EVSTR:
                   result = rb_obj_as_string(rb_eval(self, node.nd_body));
                   break;
@@ -6825,7 +6829,7 @@ class Red::MethodCompiler
                 case NODE_IF:
                   node = RTEST(rb_eval(self, node.nd_cond)) ? node.nd_body : node.nd_else; // removed event hooks
                   throw({ goto_flag: again_flag }); // was 'goto again'
-
+                
                 // unwound 'goto' architecture
                 case NODE_ITER:
                 case NODE_FOR:
@@ -6862,43 +6866,48 @@ class Red::MethodCompiler
                   POP_TAG();
                   if (state) { JUMP_TAG(state); }
                   break;
-
+                
                 case NODE_IVAR:
                   result = rb_ivar_get(self, node.nd_vid);
                   break;
-
+                
                 case NODE_LASGN:
                   result = rb_eval(self, node.nd_value);
                   ruby_scope.local_vars[node.nd_cnt] = result;
                   break;
-
+                
                 case NODE_LVAR:
                   result = ruby_scope.local_vars[node.nd_cnt];
                   break;
-
+                
                 case NODE_LIT:
                   result = node.nd_lit;
                   break;
-
+                
+                // verbatim
+                case NODE_MASGN:
+                  result = massign(self, node, rb_eval(self, node.u2), 0);
+                  break;
+                
                 // verbatim
                 case NODE_MATCH:
                   result = rb_reg_match2(node.nd_lit);
                   break;
-
+                
                 // verbatim
                 case NODE_MATCH2:
                   var l = rb_eval(self,node.nd_recv);
                   var r = rb_eval(self,node.nd_value);
                   result = rb_reg_match(l, r);
                   break;
-
+                
                 // verbatim
                 case NODE_MATCH3:
                   var r = rb_eval(self,node.nd_recv);
                   var l = rb_eval(self,node.nd_value);
                   result = (TYPE(l) == T_STRING) ? rb_reg_match(r,l) : rb_funcall(l, match, 1, r);
                   break;
-
+                
                 case NODE_MODULE:
                   var module;
                   var cbase = class_prefix(self, node.nd_cpath);
@@ -6914,7 +6923,7 @@ class Red::MethodCompiler
                   }
                   result = module_setup(module, node);
                   break;
-
+                
                 // verbatim
                 case NODE_NEXT:
                 //CHECK_INTS;

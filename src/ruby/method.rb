@@ -92,7 +92,7 @@ class Red::MethodCompiler
           rklass = rklass.superclass;
         }
         if (TYPE(klass) == T_ICLASS) { klass = klass.klass; }
-        var method = NEWOBJ(); // was Data_Make_Struct
+        NEWOBJ(method); // was Data_Make_Struct
         OBJSETUP(method, mklass, T_DATA);
         method.data = {
           klass: klass,

@@ -459,7 +459,7 @@ class Red::MethodCompiler
   def struct_alloc
     <<-END
       function struct_alloc(klass) {
-        var st = NEWOBJ();
+        NEWOBJ(st);
         OBJSETUP(st, klass, T_STRUCT);
         var size = rb_struct_iv_get(klass, '__size__');
         var n = FIX2LONG(size);

@@ -3,7 +3,7 @@ class Red::MethodCompiler
   def ary_alloc
     <<-END
       function ary_alloc(klass) {
-        var ary = NEWOBJ();
+        NEWOBJ(ary);
         OBJSETUP(ary, klass, T_ARRAY);
         ary.ptr = [];
         return ary;

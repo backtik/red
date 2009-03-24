@@ -17,7 +17,7 @@ class Red::MethodCompiler
     add_function :st_init_numtable
     <<-END
       function include_class_new(module, superclass) {
-        var klass = NEWOBJ();
+        NEWOBJ(klass);
         OBJSETUP(klass, rb_cClass, T_ICLASS);
         if (BUILTIN_TYPE(module) == T_ICLASS) { module = module.basic.klass; }
         if (!module.iv_tbl) { module.iv_tbl = st_init_numtable(); }
@@ -47,7 +47,7 @@ class Red::MethodCompiler
   def rb_class_allocate_instance
     <<-END
       function rb_class_allocate_instance(klass) {
-        var obj = NEWOBJ();
+        NEWOBJ(obj);
         OBJSETUP(obj, klass, T_OBJECT);
         return obj;
       }
@@ -59,7 +59,7 @@ class Red::MethodCompiler
     add_function :st_init_numtable
     <<-END
       function rb_class_boot(superclass) {
-        var klass = NEWOBJ();
+        NEWOBJ(klass);
         OBJSETUP(klass, rb_cClass, T_CLASS);
         klass.superclass = superclass;
         klass.iv_tbl = 0;
@@ -392,7 +392,7 @@ class Red::MethodCompiler
     add_function :st_init_numtable
     <<-END
       function rb_module_new() {
-        var mdl = NEWOBJ();
+        NEWOBJ(mdl);
         OBJSETUP(mdl, rb_cModule, T_MODULE);
         mdl.superclass = 0;
         mdl.iv_tbl = 0;
@@ -473,7 +473,7 @@ class Red::MethodCompiler
           return klass;
         } else {
           /* copy singleton(unnamed) class */
-          var clone = NEWOBJ();
+          NEWOBJ(clone);
           OBJSETUP(clone, 0, klass.basic.flags);
           if (BUILTIN_TYPE(obj) == T_CLASS) {
             clone.basic.klass = clone;
