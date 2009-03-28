@@ -539,6 +539,29 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def rb_ary_or
+    add_function :to_ary, :rb_ary_new, :ary_make_hash, :rb_ary_elt, :rb_ary_push
+    <<-END
+      function rb_ary_or(ary1, ary2) {
+        ary2 = to_ary(ary2);
+        var ary3 = rb_ary_new();
+        var hash = ary_make_hash(ary1, ary2);
+        for (var v, vv, tmp, i = 0, l = ary1.ptr.length; i < l; ++i) {
+          v = vv = rb_ary_elt(ary1, i);
+          tmp = st_delete(hash.tbl, vv, 0);
+          if (tmp[0]) { rb_ary_push(ary3, v); }
+        }
+        for (i = 0, l = ary2.ptr.length; i < l; ++i) {
+          v = vv = rb_ary_elt(ary2, i);
+          tmp = st_delete(hash.tbl, vv, 0);
+          if (tmp[0]) { rb_ary_push(ary3, v); }
+        }
+        return ary3;
+      }
+    END
+  end
+  
   # removed ELTS_SHARED stuff
   def rb_ary_pop
     add_function :rb_ary_modify_check

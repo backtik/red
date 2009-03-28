@@ -252,6 +252,21 @@ class Red::MethodCompiler
     END
   end
   
+  # CHECK: look up what 'memchr' is
+  def rb_str_include
+    add_function :rb_string_value, :rb_str_index
+    <<-END
+      function rb_str_include(str, arg) {
+        if (FIXNUM_P(arg)) {
+          if (memchr(str.ptr, FIX2INT(arg), str.ptr.length)) { return Qtrue; }
+          return Qfalse;
+        }
+        rb_string_value(arg);
+        return (rb_str_index(str, arg, 0) == -1) ? Qfalse : Qtrue;
+      }
+    END
+  end
+  
   # expanded rb_scan_args
   def rb_str_init
     add_function :rb_scan_args, :rb_str_replace

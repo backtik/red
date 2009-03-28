@@ -201,6 +201,18 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def fix_or
+    add_function :fix_coerce, :rb_big_or
+    <<-END
+      function fix_or(x, y) {
+        if (!FIXNUM_P(y = fix_coerce(y))) { return rb_big_or(y, x); }
+        var val = FIX2LONG(x) | FIX2LONG(y);
+        return LONG2NUM(val);
+      }
+    END
+  end
+  
   # CHECK
   def fix_plus
     add_function :rb_float_new, :rb_num_coerce_bin
