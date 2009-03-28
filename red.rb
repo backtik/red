@@ -995,8 +995,10 @@ module Red
     def initialize(args_array_sexp, rest_arg_sexp, value_sexp, options)
       args_array = args_array_sexp.red!
       rest_arg = rest_arg_sexp.red!
-      value = value_sexp.red!
-      self << "r(%s,%s,%s,%s,%s)" % [$line, TYPES[:NODE_MASGN], args_array, rest_arg, value]
+    # value = value_sexp.red!
+    # self << "r(%s,%s,%s,%s,%s)" % [$line, TYPES[:NODE_MASGN], args_array, rest_arg, value]
+    # CHECK: a,b = 1,2 MASGN nodes are actually not built using NEW_MASGN, so 'value' is inappropriate here
+      self << "r(%s,%s,%s,%s)" % [$line, TYPES[:NODE_MASGN], args_array, rest_arg]
     end
   end
   

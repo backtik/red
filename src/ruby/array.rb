@@ -222,6 +222,16 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def rb_ary_at
+    add_function :rb_ary_entry
+    <<-END
+      function rb_ary_at(ary, pos) {
+        return rb_ary_entry(ary, NUM2LONG(pos));
+      }
+    END
+  end
+  
+  # verbatim
   def rb_ary_cmp
     add_function :to_ary, :rb_exec_recursive, :recursive_cmp
     <<-END

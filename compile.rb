@@ -415,6 +415,20 @@ class Red::MethodCompiler
       END
     end
     
+    def acos
+      $mc.add_function :rb_define_module_function, :math_acos
+      <<-END
+        rb_define_module_function(rb_mMath, "acos", math_acos, 1);
+      END
+    end
+    
+    def acosh
+      $mc.add_function :rb_define_module_function, :math_acosh
+      <<-END
+        rb_define_module_function(rb_mMath, "acosh", math_acosh, 1);
+      END
+    end
+    
     def add_class
       $mc.add_function :elem_add_class
       <<-END
@@ -522,10 +536,17 @@ class Red::MethodCompiler
       END
     end
     
-    def asctime
-      $mc.add_function :time_asctime
+    def asin
+      $mc.add_function :rb_define_module_function, :math_asin
       <<-END
-        rb_define_method(rb_cTime, "asctime", time_asctime, 0);
+        rb_define_module_function(rb_mMath, "asin", math_asin, 1);
+      END
+    end
+    
+    def asinh
+      $mc.add_function :rb_define_module_function, :math_asinh
+      <<-END
+        rb_define_module_function(rb_mMath, "asinh", math_asinh, 1);
       END
     end
     
@@ -534,6 +555,27 @@ class Red::MethodCompiler
       <<-END
         rb_define_method(rb_cArray, 'at', rb_ary_at, 1);
         rb_define_singleton_method(rb_cTime, "at", time_s_at, -1);
+      END
+    end
+    
+    def atan
+      $mc.add_function :rb_define_module_function, :math_atan
+      <<-END
+        rb_define_module_function(rb_mMath, "atan", math_atan, 1);
+      END
+    end
+    
+    def atan2
+      $mc.add_function :rb_define_module_function, :math_atan2
+      <<-END
+        rb_define_module_function(rb_mMath, "atan2", math_atan2, 2);
+      END
+    end
+    
+    def atanh
+      $mc.add_function :rb_define_module_function, :math_atanh
+      <<-END
+        rb_define_module_function(rb_mMath, "atanh", math_atanh, 1);
       END
     end
     
@@ -956,6 +998,20 @@ class Red::MethodCompiler
       END
     end
     
+    def cos
+      $mc.add_function :rb_define_module_function, :math_cos
+      <<-END
+        rb_define_module_function(rb_mMath, "cos", math_cos, 1);
+      END
+    end
+    
+    def cosh
+      $mc.add_function :rb_define_module_function, :math_cosh
+      <<-END
+        rb_define_module_function(rb_mMath, "cosh", math_cosh, 1);
+      END
+    end
+    
     def count
       $mc.add_function :enum_count, :rb_str_count, :rb_ary_count
       <<-END
@@ -969,13 +1025,6 @@ class Red::MethodCompiler
       $mc.add_function :rb_str_crypt
       <<-END
         rb_define_method(rb_cString, 'crypt', rb_str_crypt, 1);
-      END
-    end
-    
-    def ctime
-      $mc.add_function :time_asctime
-      <<-END
-        rb_define_method(rb_cTime, "ctime", time_asctime, 0);
       END
     end
     
@@ -1345,6 +1394,20 @@ class Red::MethodCompiler
       END
     end
     
+    def erf
+      $mc.add_function :rb_define_module_function, :math_erf
+      <<-END
+        rb_define_module_function(rb_mMath, "erf", math_erf, 1);
+      END
+    end
+    
+    def erfc
+      $mc.add_function :rb_define_module_function, :math_erfc
+      <<-END
+        rb_define_module_function(rb_mMath, "erfc", math_erfc, 1);
+      END
+    end
+    
     def errno
       $mc.add_function :syserr_errno
       <<-END
@@ -1408,6 +1471,13 @@ class Red::MethodCompiler
       $mc.add_function :localjump_xvalue
       <<-END
         rb_define_method(rb_eLocalJumpError, 'exit_value', localjump_xvalue, 0);
+      END
+    end
+    
+    def exp
+      $mc.add_function :rb_define_module_function, :math_exp
+      <<-END
+        rb_define_module_function(rb_mMath, "exp", math_exp, 1);
       END
     end
     
@@ -1556,6 +1626,13 @@ class Red::MethodCompiler
       <<-END
         rb_define_method(rb_cModule, 'freeze', rb_mod_freeze, 0);
         rb_define_method(rb_mKernel, 'freeze', rb_obj_freeze, 0);
+      END
+    end
+    
+    def frexp
+      $mc.add_function :rb_define_module_function, :math_frexp
+      <<-END
+        rb_define_module_function(rb_mMath, "frexp", math_frexp, 1);
       END
     end
     
@@ -1758,6 +1835,13 @@ class Red::MethodCompiler
       $mc.add_function :elem_html_set
       <<-END
         rb_define_method(rb_cElement, 'html=', elem_html_set, 1);
+      END
+    end
+    
+    def hypot
+      $mc.add_function :rb_define_module_function, :math_hypot
+      <<-END
+        rb_define_module_function(rb_mMath, "hypot", math_hypot, 2);
       END
     end
     
@@ -2124,6 +2208,13 @@ class Red::MethodCompiler
       END
     end
     
+    def ldexp
+      $mc.add_function :rb_define_module_function, :math_ldexp
+      <<-END
+        rb_define_module_function(rb_mMath, "ldexp", math_ldexp, 2);
+      END
+    end
+    
     def left
       $mc.add_function :doc_left, :rb_define_module_function, :elem_left
       <<-END
@@ -2185,9 +2276,17 @@ class Red::MethodCompiler
     end
     
     def log
-      $mc.add_function :rb_f_log
+      $mc.add_function :rb_f_log, :math_log, :rb_define_global_function, :rb_define_module_function
       <<-END
         rb_define_global_function('log', rb_f_log, 1);
+        rb_define_module_function(rb_mMath, "log", math_log, 1);
+      END
+    end
+    
+    def log10
+      $mc.add_function :rb_define_module_function, :math_log10
+      <<-END
+        rb_define_module_function(rb_mMath, "log10", math_log10, 1);
       END
     end
     
@@ -3236,6 +3335,20 @@ class Red::MethodCompiler
       END
     end
     
+    def sin
+      $mc.add_function :rb_define_module_function, :math_sin
+      <<-END
+        rb_define_module_function(rb_mMath, "sin", math_sin, 1);
+      END
+    end
+    
+    def sinh
+      $mc.add_function :rb_define_module_function, :math_sinh
+      <<-END
+        rb_define_module_function(rb_mMath, "sinh", math_sinh, 1);
+      END
+    end
+    
     def size
       $mc.add_function :rb_hash_size, :rb_str_length, :fix_size, :rb_struct_size
       $mc.add_method :rb_ary_length
@@ -3299,6 +3412,13 @@ class Red::MethodCompiler
       $mc.add_function :rb_f_sprintf, :rb_define_global_function
       <<-END
         rb_define_global_function('sprintf', rb_f_sprintf, -1);
+      END
+    end
+    
+    def sqrt
+      $mc.add_function :rb_define_module_function, :math_sqrt
+      <<-END
+        rb_define_module_function(rb_mMath, "sqrt", math_sqrt, 1);
       END
     end
     
@@ -3503,6 +3623,20 @@ class Red::MethodCompiler
       <<-END
         rb_define_method(rb_mEnumerable, 'take_while', enum_take_while, 0);
         rb_define_method(rb_cArray, 'take_while', rb_ary_take_while, 0);
+      END
+    end
+    
+    def tan
+      $mc.add_function :rb_define_module_function, :math_tan
+      <<-END
+        rb_define_module_function(rb_mMath, "tan", math_tan, 1);
+      END
+    end
+    
+    def tanh
+      $mc.add_function :rb_define_module_function, :math_tanh
+      <<-END
+        rb_define_module_function(rb_mMath, "tanh", math_tanh, 1);
       END
     end
     

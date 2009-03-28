@@ -144,6 +144,21 @@ class Red::MethodCompiler
     END
   end
   
+  # removed check against 'time_free' function
+  def rb_time_timeval
+    add_function :time_timeval
+    <<-END
+      function rb_time_timeval(time) {
+        if (TYPE(time) == T_DATA) {
+          GetTimeval(time, tobj);
+          var t = tobj.tv;
+          return t;
+        }
+        return time_timeval(time, Qfalse);
+      }
+    END
+  end
+  
   # verbatim
   def time_add
     add_function :modf, :rb_raise, :rb_time_new, :rb_num2dbl
@@ -200,6 +215,18 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def time_dup
+    add_function :time_s_alloc, :time_init_copy
+    <<-END
+      function time_dup(time) {
+        var dup = time_s_alloc(CLASS_OF(time));
+        time_init_copy(dup, time);
+        return dup;
+      }
+    END
+  end
+  
+  # verbatim
   def time_eql
     <<-END
       function time_eql(time1, time2) {
@@ -222,6 +249,26 @@ class Red::MethodCompiler
       function time_get_tm(time, gmt) {
         if (gmt) { return time_gmtime(time); }
         return time_localtime(time);
+      }
+    END
+  end
+  
+  # verbatim
+  def time_getgmtime
+    add_function :time_gmtime, :time_dup
+    <<-END
+      function time_getgmtime(time) {
+        return time_gmtime(time_dup(time));
+      }
+    END
+  end
+  
+  # verbatim
+  def time_getlocaltime
+    add_function :time_localtime, :time_dup
+    <<-END
+      function time_getlocaltime(time) {
+        return time_localtime(time_dup(time));
       }
     END
   end
@@ -295,6 +342,18 @@ class Red::MethodCompiler
         GetTimeval(copy, tcopy);
         MEMCPY(tcopy, tobj, 1);
         return copy;
+      }
+    END
+  end
+  
+  # verbatim
+  def time_isdst
+    add_function :time_get_tm
+    <<-END
+      function time_isdst(time) {
+        GetTimeval(time, tobj);
+        if (tobj.tm_got === 0) { time_get_tm(time, tobj.gmt); }
+        return tobj.tm.tm_isdst ? Qtrue : Qfalse;
       }
     END
   end
@@ -447,6 +506,52 @@ class Red::MethodCompiler
     END
   end
   
+  # removed check against 'time_free' function
+  def time_s_at
+    add_function :rb_time_timeval, :time_new_internal, :rb_scan_args
+    <<-END
+      function time_s_at(argc, argv, klass) {
+        var tv = {};
+        var tmp = rb_scan_args(argc, argv, '11');
+        var time = tmp[1];
+        var t = tmp[2];
+        if (tmp[0] == 2) {
+          tv.tv_sec = NUM2LONG(time);
+          tv.tv_usec = NUM2LONG(t);
+        } else {
+          tv = rb_time_timeval(time);
+        }
+        t = time_new_internal(klass, tv.tv_sec, tv.tv_usec);
+        if (TYPE(time) == T_DATA) {
+          GetTimeval(time, tobj);
+          GetTimeval(t, tobj2);
+          tobj2.gmt = tobj.gmt;
+        }
+        return t;
+      }
+    END
+  end
+  
+  # verbatim
+  def time_s_mktime
+    add_function :time_utc_or_local
+    <<-END
+      function time_s_mktime(argc, argv, klass) {
+        return time_utc_or_local(argc, argv, Qfalse, klass);
+      }
+    END
+  end
+  
+  # verbatim
+  def time_s_mkutc
+    add_function :time_utc_or_local
+    <<-END
+      function time_s_mkutc(argc, argv, klass) {
+        return time_utc_or_local(argc, argv, Qtrue, klass);
+      }
+    END
+  end
+  
   # modified to use 'rb_time_data'
   def time_sec
     add_function :rb_time_data
@@ -481,6 +586,49 @@ class Red::MethodCompiler
         GetTimeval(time, tobj);
         tobj.gmt = gmt;
         return time;
+      }
+    END
+  end
+  
+  # expanded modf
+  def time_timeval
+    add_function :rb_raise, :modf, :rb_obj_classname
+    <<-END
+      function time_timeval(time, interval) {
+        var t = {};
+        var tstr = interval ? "time interval" : "time";
+        switch (TYPE(time)) {
+          case T_FIXNUM:
+            t.tv_sec = FIX2LONG(time);
+            if (interval && (t.tv_sec < 0)) { rb_raise(rb_eArgError, "%s must be positive", tstr); }
+            t.tv_usec = 0;
+            break;
+          case T_FLOAT:
+            if (interval && (time.value < 0.0)) {
+              rb_raise(rb_eArgError, "%s must be positive", tstr);
+            } else {
+              var tmp = modf(time.value);
+              var d = tmp[0];
+              var f = tmp[1];
+              if (d < 0) {
+                d += 1;
+                f -= 1;
+              }
+              t.tv_sec = f;
+              if (f != t.tv_sec) { rb_raise(rb_eRangeError, "%f out of Time range", time.value); }
+              t.tv_usec = d * 1e6 + 0.5;
+            }
+            break;
+          case T_BIGNUM:
+            t.tv_sec = NUM2LONG(time);
+            if (interval && (t.tv_sec < 0)) { rb_raise(rb_eArgError, "%s must be positive", tstr); }
+            t.tv_usec = 0;
+            break;
+          default:
+            rb_raise(rb_eTypeError, "can't convert %s into %s", rb_obj_classname(time), tstr);
+            break;
+        }
+        return t;
       }
     END
   end
@@ -545,6 +693,16 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def time_usec
+    <<-END
+      function time_usec(time) {
+        GetTimeval(time, tobj);
+        return LONG2NUM(tobj.tv.tv_usec);
+      }
+    END
+  end
+  
+  # verbatim
   def time_utc_offset
     add_function :time_get_tm, :gmtime, :rb_raise
     <<-END
@@ -573,6 +731,16 @@ class Red::MethodCompiler
           off = (off * 60) + l.tm_sec - u.tm_sec;
           return LONG2FIX(off);
         }
+      }
+    END
+  end
+  
+  # verbatim
+  def time_utc_p
+    <<-END
+      function time_utc_p(time) {
+        GetTimeval(time, tobj);
+        return (tobj.gmt) ? Qtrue : Qfalse;
       }
     END
   end
