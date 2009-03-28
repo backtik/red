@@ -5677,7 +5677,7 @@ class Red::MethodCompiler
           PUSH_TAG(PROT_NONE);
           try { // was EXEC_TAG
             val = func(args);
-          } catch(x) {
+          } catch (x) {
             if (typeof(state = x) != 'number') { throw(state); }
           }
           POP_TAG();
@@ -5936,8 +5936,8 @@ class Red::MethodCompiler
           PUSH_TAG(PROT_NONE);
           try { // was EXEC_TAG
             result = rb_eval(ruby_cbase, node.nd_next);
-          } catch(state) {
-            if (typeof(state) != 'number') { throw(state); }
+          } catch (x) {
+            if (typeof(state = x) != 'number') { throw(state); }
           }
           POP_TAG();
           POP_CREF();
