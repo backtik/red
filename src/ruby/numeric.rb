@@ -61,6 +61,17 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def num_divmod
+    add_function :rb_assoc_new, :num_div, :rb_funcall
+    add_method :%
+    <<-END
+      function num_divmod(x, y) {
+        return rb_assoc_new(num_div(x, y), rb_funcall(x, '%', 1, y));
+      }
+    END
+  end
+  
+  # verbatim
   def num_eql
     add_function :rb_equal
     <<-END
@@ -109,12 +120,38 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def num_remainder
+    add_function :rb_funcall, :rb_equal
+    add_method :<, :>, :%, :-
+    <<-END
+      function num_remainder(x, y) {
+        var z = rb_funcall(x, '%', 1, y);
+        if ((!rb_equal(z, INT2FIX(0))) && ((RTEST(rb_funcall(x, '<', 1, INT2FIX(0))) && RTEST(rb_funcall(y, '>', 1, INT2FIX(0)))) || (RTEST(rb_funcall(x, '>', 1, INT2FIX(0))) && RTEST(rb_funcall(y, '<', 1, INT2FIX(0)))))) { return rb_funcall(z, '-', 1, y); }
+        return z;
+      }
+    END
+  end
+  
+  # verbatim
   def num_to_int
     add_function :rb_funcall
     add_method :to_i
     <<-END
       function num_to_int(num) {
         return rb_funcall(num, id_to_i, 0, 0);
+      }
+    END
+  end
+  
+  # modified 'do_coerce' to return array instead of using pointers
+  def num_uminus
+    add_function :do_coerce, :rb_funcall
+    add_method :-
+    <<-END
+      function num_uminus(num) {
+        var zero = INT2FIX(0);
+        var tmp = do_coerce(zero, num, Qtrue);
+        return rb_funcall(tmp[1], '-', 1, tmp[2]);
       }
     END
   end
@@ -157,7 +194,7 @@ class Red::MethodCompiler
   
   # unwound 'goto' structure
   def rb_num2long
-    #add_function :rb_raise, :rb_big2long, :rb_to_int
+    add_function :rb_raise, :rb_big2long, :rb_to_int
     <<-END
       function rb_num2long(val) {
         do { // added to handle 'goto again'

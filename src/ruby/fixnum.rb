@@ -77,6 +77,20 @@ class Red::MethodCompiler
     END
   end
   
+  # modified fixdivmod to return array instead of using pointers
+  def fix_divmod
+    add_function :fixdivmod, :rb_assoc_new, :rb_num_coerce_bin
+    <<-END
+      function fix_divmod(x, y) {
+        if (FIXNUM_P(y)) {
+          var tmp = fixdivmod(FIX2LONG(x), FIX2LONG(y));
+          return rb_assoc_new(LONG2NUM(tmp[0]), LONG2NUM(tmp[1]));
+        }
+        return rb_num_coerce_bin(x, y);
+      }
+    END
+  end
+  
   # CHECK
   def fix_equal
     add_function :num_equal

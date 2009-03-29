@@ -74,6 +74,40 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def flo_divmod
+    add_function :rb_big2dbl, :rb_num_coerce_bin, :flodivmod, :rb_dbl2big, :rb_float_new, :rb_assoc_new
+    <<-END
+      function flo_divmod(x, y) {
+        var fy;
+        switch (TYPE(y)) {
+          case T_FIXNUM:
+            fy = FIX2LONG(y);
+            break;
+          case T_BIGNUM:
+            fy = rb_big2dbl(y);
+            break;
+          case T_FLOAT:
+            fy = y.value;
+            break;
+          default:
+            return rb_num_coerce_bin(x, y);
+        }
+        var tmp = flodivmod(x.value, fy);
+        var div = tmp[0];
+        var mod = tmp[1];
+        var a;
+        if (FIXABLE(div)) {
+          a = LONG2FIX(Math.round(div));
+        } else {
+          a = rb_dbl2big(div);
+        }
+        var b = rb_float_new(mod);
+        return rb_assoc_new(a, b);
+      }
+    END
+  end
+  
   # EMPTY
   def flo_eq
     <<-END
@@ -349,6 +383,16 @@ class Red::MethodCompiler
         if (!FIXABLE(f)) { return rb_dbl2big(f); }
         var val = f;
         return LONG2FIX(val);
+      }
+    END
+  end
+  
+  # verbatim
+  def flo_uminus
+    add_function :rb_float_new
+    <<-END
+      function flo_uminus(flt) {
+        return rb_float_new(-flt.value);
       }
     END
   end

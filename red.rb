@@ -987,12 +987,12 @@ module Red
           bignum = value
           sign = 1
         end
-        digits = (0...Preprocessor::RUBY_CONSTANTS[:DIGSPERLONG]).map do
-          old = bignum
+        digits = []
+        until bignum == 0
+          digits.push(bignum & (Preprocessor::RUBY_CONSTANTS[:BIGRAD] - 1))
           bignum = bignum >> Preprocessor::RUBY_CONSTANTS[:BITSPERDIG]
-          old & (Preprocessor::RUBY_CONSTANTS[:BIGRAD] - 1)
-        end.inspect
-        self << "r(%s,%s,%s,%d)" % [$line, 0xfb, digits, sign]
+        end
+        self << "r(%s,%s,%s,%d)" % [$line, 0xfb, digits.inspect, sign]
       when 'Fixnum'
         self << "r(%s,%s,%d)" % [$line, 0xfc, value]
       when 'Float'

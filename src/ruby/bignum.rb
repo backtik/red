@@ -15,6 +15,24 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def big2ulong
+    <<-END
+      function big2ulong(x, type) {
+        var len = x.len;
+        if (len > DIGSPERLONG) { rb_raise(rb_eRangeError, "bignum too big to convert into '%s'", type); }
+        var ds = BDIGITS(x);
+        var num = 0;
+        while (len--) {
+          num = BIGUP(num);
+          num += ds[len];
+        }
+        return num;
+      }
+    END
+  end
+  
+  # verbatim
   def bigadd
     add_function :bigsub, :bignew
     <<-END
@@ -57,6 +75,7 @@ class Red::MethodCompiler
   
   # modified to return array [div, mod] instead of using pointers
   def bigdivmod
+    add_function :bigdivrem, :bigadd, :rb_int2big
     <<-END
       function bigdivmod(x, y) {
         var tmp = bigdivrem(x, y);
@@ -100,7 +119,7 @@ class Red::MethodCompiler
           i = nx;
           while (i--) {
             t2 = BIGUP(t2) + zds[i];
-            zds[i] = (t2 / dd);
+            zds[i] = Math.floor(t2 / dd);
             t2 %= dd;
           }
           z.sign = (x.sign == y.sign) ? 1 : 0;
@@ -151,7 +170,7 @@ class Red::MethodCompiler
           if (zds[j] == yds[ny-1]) {
             q = BIGRAD - 1;
           } else {
-            q = ((BIGUP(zds[j]) + zds[j - 1]) / yds[ny-1]);
+            q = Math.floor((BIGUP(zds[j]) + zds[j - 1]) / yds[ny-1]);
           }
           if (q) {
             i = 0;
@@ -166,7 +185,7 @@ class Red::MethodCompiler
               t2 = BIGDN(t2);
             } while (++i < ny);
             num += zds[j - ny + i] - t2; /* borrow from high digit; don't update */
-            while (num) { /* "add back" required */
+            while (num) { /* 'add back' required */
               i = 0;
               num = 0;
               q--;
@@ -382,9 +401,23 @@ class Red::MethodCompiler
   
   # removed warning
   def rb_big2dbl
+    add_function :big2dbl
     <<-END
       function rb_big2dbl(x) {
         return big2dbl(x);
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_big2long
+    add_function :big2ulong, :rb_raise
+    <<-END
+      function rb_big2long(x) {
+        var num = big2ulong(x, "long");
+        if ((num < 0) && (x.sign || (num != LONG_MIN))) { rb_raise(rb_eRangeError, "bignum too big to convert into 'long'"); }
+        if (!x.sign) { return -num; }
+        return num;
       }
     END
   end
@@ -543,6 +576,46 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def rb_big_div
+    add_function :rb_int2big, :rb_num_coerce_bin, :bigdivmod, :bignorm
+    <<-END
+      function rb_big_div(x, y) {
+        switch (TYPE(y)) {
+          case T_FIXNUM:
+            y = rb_int2big(FIX2LONG(y));
+            break;
+          case T_BIGNUM:
+            break;
+          default:
+            return rb_num_coerce_bin(x, y);
+        }
+        var tmp = bigdivmod(x,y);
+        return bignorm(tmp[0]);
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_big_divmod
+    add_function :rb_int2big, :rb_num_coerce_bin, :rb_assoc_new, :bignorm, :bigdivmod
+    <<-END
+      function rb_big_divmod(x, y) {
+        switch (TYPE(y)) {
+          case T_FIXNUM:
+            y = rb_int2big(FIX2LONG(y));
+            break;
+          case T_BIGNUM:
+            break;
+          default:
+            return rb_num_coerce_bin(x, y);
+        }
+        var tmp = bigdivmod(x, y);
+        return rb_assoc_new(bignorm(tmp[0]), bignorm(tmp[1]));
+      }
+    END
+  end
+  
+  # verbatim
   def rb_big_eq
     add_function :rb_int2big, :isnan, :rb_big2dbl, :memcmp, :rb_equal
     <<-END
@@ -639,6 +712,59 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def rb_big_mul
+    add_function :rb_big_mul0, :bignorm
+    <<-END
+      function rb_big_mul(x, y) {
+        return bignorm(rb_big_mul0(x, y));
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_big_mul0
+    add_function :rb_int2big, :rb_float_new, :rb_big2dbl, :rb_num_coerce_bin, :bignew
+    <<-END
+      function rb_big_mul0(x, y) {
+        var n = 0;
+        if (FIXNUM_P(x)) { x = rb_int2big(FIX2LONG(x)); }
+        switch (TYPE(y)) {
+          case T_FIXNUM:
+            y = rb_int2big(FIX2LONG(y));
+            break;
+          case T_BIGNUM:
+            break;
+          case T_FLOAT:
+            return rb_float_new(rb_big2dbl(x) * y.value);
+          default:
+            return rb_num_coerce_bin(x, y);
+        }
+        var j = x.len + y.len + 1;
+        var z = bignew(j, (x.sign == y.sign) ? 1 : 0);
+        var zds = BDIGITS(z);
+        while (j--) {
+          zds[j] = 0;
+        }
+        for (var i = 0, l = x.len; i < l; ++i) {
+          var dd = BDIGITS(x)[i];
+          if (dd == 0) { continue; }
+          n = 0;
+          for (j = 0, m = y.len; j < m; ++j) {
+            var ee = n + dd * BDIGITS(y)[j];
+            n = zds[i + j] + ee;
+            if (ee) { zds[i + j] = BIGLO(n); }
+            n = BIGDN(n);
+          }
+          if (n) {
+            zds[i + j] = n;
+          }
+        }
+        return z;
+      }
+    END
+  end
+  
+  # verbatim
   def rb_big_norm
     <<-END
       function rb_big_norm(x) {
@@ -696,6 +822,26 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def rb_big_remainder
+    add_function :rb_int2big, :rb_num_coerce_bin, :bigdivrem, :bignorm
+    <<-END
+      function rb_big_remainder(x, y) {
+        switch (TYPE(y)) {
+          case T_FIXNUM:
+            y = rb_int2big(FIX2LONG(y));
+            break;
+          case T_BIGNUM:
+            break;
+          default:
+            return rb_num_coerce_bin(x, y);
+        }
+        var tmp = bigdivrem(x, y);
+        return bignorm(tmp[1]);
+      }
+    END
+  end
+  
+  # verbatim
   def rb_big_to_f
     add_function :rb_float_new, :rb_big2dbl
     <<-END
@@ -719,6 +865,17 @@ class Red::MethodCompiler
           base = NUM2INT(b);
         }
         return rb_big2str(x, base);
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_big_uminus
+    <<-END
+      function rb_big_uminus(x) {
+        var z = rb_big_clone(x);
+        z.sign = x.sign ? 0 : 1;
+        return bignorm(z);
       }
     END
   end

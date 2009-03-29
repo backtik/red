@@ -1,4 +1,4 @@
-function r(line,type,a,b,c) {
+function r(line, type, a, b, c) {
   ruby_sourceline = line;
   switch (type) {
     case NODE_AND:
