@@ -158,6 +158,24 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def rb_ary_and
+    add_function :to_ary, :rb_ary_new, :ary_make_hash, :rb_ary_push
+    <<-END
+      function rb_ary_and(ary1, ary2) {
+        ary2 = to_ary(ary2);
+        var ary3 = rb_ary_new();
+        var hash = ary_make_hash(ary2, 0);
+        for (var v, vv, tmp, i = 0, l = ary1.ptr.length; i < l; ++i) {
+          v = vv = rb_ary_elt(ary1, i);
+          tmp = st_delete(hash.tbl, vv, 0);
+          if (tmp[0]) { rb_ary_push(ary3, v); }
+        }
+        return ary3;
+      }
+    END
+  end
+  
   # modified rb_range_beg_len to return array instead of using pointers
   def rb_ary_aref
     add_function :rb_ary_subseq, :rb_scan_args, :rb_ary_entry, :rb_raise, :rb_range_beg_len, :rb_num2long

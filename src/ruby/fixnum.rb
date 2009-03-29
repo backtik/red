@@ -1,4 +1,16 @@
 class Red::MethodCompiler
+  # verbatim
+  def fix_and
+    add_function :fix_coerce, :rb_big_and
+    <<-END
+      function fix_and(x, y) {
+        if (!FIXNUM_P(y = fix_coerce(y))) { return rb_big_and(y, x); }
+        var val = FIX2LONG(x) & FIX2LONG(y);
+        return LONG2NUM(val);
+      }
+    END
+  end
+  
   # removed a check against 'sizeof(VALUE)*CHAR_BIT'
   def fix_aref
     add_function :fix_coerce, :rb_big_norm

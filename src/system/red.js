@@ -22,6 +22,11 @@ function r(line,type,a,b,c) {
     case NODE_BEGIN:
       return NEW_BEGIN(a);
     
+    case 0xfb: // Bignum
+      var big = bignew(a.length, b);
+      big.digits = a;
+      return NEW_NODE(NODE_LIT, big, 0, 0);
+    
     case NODE_BLOCK:
       for (var i = a.length, last = NEW_NODE(NODE_BLOCK, a[--i],0,0); i-- > 0; ) {
         last = NEW_NODE(NODE_BLOCK, a[i], 0, last);

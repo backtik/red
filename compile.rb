@@ -103,8 +103,9 @@ class Red::MethodCompiler
     end
     
     def ^
-      $mc.add_functions :false_xor, :true_xor, :fix_xor
+      $mc.add_functions :false_xor, :true_xor, :fix_xor, :rb_big_xor
       <<-END
+        rb_define_method(rb_cBignum, "^", rb_big_xor, 1);
         rb_define_method(rb_cFalseClass, '^', false_xor, 1);
         rb_define_method(rb_cNilClass, '^', false_xor, 1);
         rb_define_method(rb_cFixnum, '^', fix_xor, 1);
@@ -113,8 +114,9 @@ class Red::MethodCompiler
     end
     
     def %
-      $mc.add_function :rb_str_format_m, :fix_mod, :flo_mod
+      $mc.add_function :rb_str_format_m, :fix_mod, :flo_mod, :rb_big_modulo
       <<-END
+        rb_define_method(rb_cBignum, "%", rb_big_modulo, 1);
         rb_define_method(rb_cString, '%', rb_str_format_m, 1);
         rb_define_method(rb_cFixnum, '%', fix_mod, 1);
         rb_define_method(rb_cFloat, '%', flo_mod, 1);
@@ -122,8 +124,9 @@ class Red::MethodCompiler
     end
     
     def &
-      $mc.add_functions :false_and, :true_and, :rb_ary_and, :fix_and
+      $mc.add_functions :false_and, :true_and, :rb_ary_and, :fix_and, :rb_big_and
       <<-END
+        rb_define_method(rb_cBignum, "&", rb_big_and, 1);
         rb_define_method(rb_cFalseClass, '&', false_and, 1);
         rb_define_method(rb_cNilClass, '&', false_and, 1);
         rb_define_method(rb_cArray, '&', rb_ary_and, 1);
@@ -133,26 +136,29 @@ class Red::MethodCompiler
     end
     
     def *
-      $mc.add_function :rb_str_times, :rb_ary_times, :fix_mul, :flo_mul
+      $mc.add_function :rb_str_times, :rb_ary_times, :fix_mul, :flo_mul, :rb_big_mul
       <<-END
         rb_define_method(rb_cString, '*', rb_str_times, 1);
         rb_define_method(rb_cFloat, '*', flo_mul, 1);
+        rb_define_method(rb_cBignum, "*", rb_big_mul, 1);
         rb_define_method(rb_cArray, '*', rb_ary_times, 1);
         rb_define_method(rb_cFixnum, '*', fix_mul, 1);
       END
     end
     
     def **
-      $mc.add_function :fix_pow, :flo_pow
+      $mc.add_function :fix_pow, :flo_pow, :rb_big_pow
       <<-END
         rb_define_method(rb_cFixnum, '**', fix_pow, 1);
         rb_define_method(rb_cFloat, '**', flo_pow, 1);
+        rb_define_method(rb_cBignum, "**", rb_big_pow, 1);
       END
     end
     
     def +
-      $mc.add_function :rb_str_plus, :rb_ary_plus, :fix_plus, :flo_plus, :time_plus
+      $mc.add_function :rb_str_plus, :rb_ary_plus, :fix_plus, :flo_plus, :time_plus, :rb_big_plus
       <<-END
+        rb_define_method(rb_cBignum, "+", rb_big_plus, 1);
         rb_define_method(rb_cTime, '+', time_plus, 1);
         rb_define_method(rb_cString, '+', rb_str_plus, 1);
         rb_define_method(rb_cArray, '+', rb_ary_plus, 1);
@@ -180,18 +186,20 @@ class Red::MethodCompiler
     end
     
     def -@
-      $mc.add_function :num_uminus, :fix_uminus, :flo_uminus
+      $mc.add_function :num_uminus, :fix_uminus, :flo_uminus, :rb_big_uminus
       <<-END
         rb_define_method(rb_cNumeric, '-@', num_uminus, 0);
+        rb_define_method(rb_cBignum, "-@", rb_big_uminus, 0);
         rb_define_method(rb_cFloat, '-@', flo_uminus, 0);
         rb_define_method(rb_cFixnum, '-@', fix_uminus, 0);
       END
     end
     
     def /
-      $mc.add_function :fix_div, :flo_div
+      $mc.add_function :fix_div, :flo_div, :rb_big_div
       <<-END
         rb_define_method(rb_cFixnum, '/', fix_div, 1);
+        rb_define_method(rb_cBignum, "/", rb_big_div, 1);
         rb_define_method(rb_cFloat, '/', flo_div, 1);
       END
     end
@@ -207,8 +215,9 @@ class Red::MethodCompiler
     end
     
     def <<
-      $mc.add_function :rb_str_concat, :rb_ary_push, :rb_fix_lshift, :classes_append
+      $mc.add_function :rb_str_concat, :rb_ary_push, :rb_fix_lshift, :classes_append, :rb_big_lshift
       <<-END
+        rb_define_method(rb_cBignum, "<<", rb_big_lshift, 1);
         rb_define_method(rb_cClasses, '<<', classes_append, 1);
         rb_define_method(rb_cString, '<<', rb_str_concat, 1);
         rb_define_method(rb_cArray, '<<', rb_ary_push, 1);
@@ -228,11 +237,12 @@ class Red::MethodCompiler
     
     def <=>
       $mc.add_functions :rb_mod_cmp, :rb_str_cmp_m, :rb_ary_cmp, :num_cmp,
-                        :fix_cmp, :flo_cmp, :time_cmp
+                        :fix_cmp, :flo_cmp, :time_cmp, :rb_big_cmp
       <<-END
         rb_define_method(rb_cTime, "<=>", time_cmp, 1);
         rb_define_method(rb_cModule, '<=>',  rb_mod_cmp, 1);
         rb_define_method(rb_cFloat, '<=>', flo_cmp, 1);
+        rb_define_method(rb_cBignum, "<=>", rb_big_cmp, 1);
         rb_define_method(rb_cNumeric, '<=>', num_cmp, 1);
         rb_define_method(rb_cString, '<=>', rb_str_cmp_m, 1);
         rb_define_method(rb_cArray, '<=>', rb_ary_cmp, 1);
@@ -244,11 +254,12 @@ class Red::MethodCompiler
       $mc.add_function :rb_obj_equal, :cmp_equal, :method_eq, :proc_eq,
                        :range_eq, :rb_hash_equal, :rb_str_equal,
                        :rb_ary_equal, :fix_equal, :flo_eq, :rb_struct_equal,
-                       :elem_eq
+                       :elem_eq, :rb_big_eq
       <<-END
         rb_define_method(rb_cElement, '==', elem_eq, 1);
         rb_define_method(rb_cStruct, '==', rb_struct_equal, 1);
         rb_define_method(rb_cHash,'==', rb_hash_equal, 1);
+        rb_define_method(rb_cBignum, "==", rb_big_eq, 1);
         rb_define_method(rb_cRange, '==', range_eq, 1);
         rb_define_method(rb_cModule, '==', rb_obj_equal, 1);
         rb_define_method(rb_cMethod, '==', method_eq, 1);
@@ -294,9 +305,10 @@ class Red::MethodCompiler
     end
     
     def >>
-      $mc.add_function :rb_fix_rshift
+      $mc.add_function :rb_fix_rshift, :rb_big_rshift
       <<-END
         rb_define_method(rb_cFixnum, '>>', rb_fix_rshift, 1);
+        rb_define_method(rb_cBignum, ">>", rb_big_rshift, 1);
       END
     end
     
@@ -316,9 +328,10 @@ class Red::MethodCompiler
                        :rb_str_aref_m, :rb_ary_s_create, :rb_ary_aref,
                        :fix_aref, :rb_struct_aref, :elem_find,
                        :rb_define_module_function, :prop_aref,
-                       :styles_aref
+                       :styles_aref, :rb_big_aref
       <<-END
         rb_define_method(rb_cStyles, '[]', styles_aref, 1);
+        rb_define_method(rb_cBignum, "[]", rb_big_aref, 1);
         rb_define_method(rb_cProperties, '[]', prop_aref, 1);
         rb_define_module_function(rb_mDocument, '[]', elem_find, 1);
         rb_define_method(rb_cStruct, '[]', rb_struct_aref, 1);
@@ -347,8 +360,9 @@ class Red::MethodCompiler
     end
     
     def |
-      $mc.add_functions :false_or, :true_or, :rb_ary_or, :fix_or
+      $mc.add_functions :false_or, :true_or, :rb_ary_or, :fix_or, :rb_big_or
       <<-END
+        rb_define_method(rb_cBignum, "|", rb_big_or, 1);
         rb_define_method(rb_cFalseClass, '|', false_or, 1);
         rb_define_method(rb_cArray, '|', rb_ary_or, 1);
         rb_define_method(rb_cNilClass, '|', false_or, 1);
@@ -358,9 +372,10 @@ class Red::MethodCompiler
     end
     
     def ~
-      $mc.add_function :fix_rev
+      $mc.add_function :fix_rev, :rb_big_neg
       <<-END
         rb_define_method(rb_cFixnum, '~', fix_rev, 0);
+        rb_define_method(rb_cBignum, "~", rb_big_neg, 0);
       END
     end
     
@@ -407,9 +422,10 @@ class Red::MethodCompiler
     end
     
     def abs
-      $mc.add_function :num_abs, :fix_abs, :flo_abs
+      $mc.add_function :num_abs, :fix_abs, :flo_abs, :rb_big_abs
       <<-END
         rb_define_method(rb_cNumeric, 'abs', num_abs, 0);
+        rb_define_method(rb_cBignum, "abs", rb_big_abs, 0);
         rb_define_method(rb_cFixnum, 'abs', fix_abs, 0);
         rb_define_method(rb_cFloat, 'abs', flo_abs, 0);
       END
@@ -911,9 +927,10 @@ class Red::MethodCompiler
     end
     
     def coerce
-      $mc.add_function :num_coerce, :flo_coerce
+      $mc.add_function :num_coerce, :flo_coerce, :rb_big_coerce
       <<-END
         rb_define_method(rb_cNumeric, 'coerce', num_coerce, 1);
+        rb_define_method(rb_cBignum, "coerce", rb_big_coerce, 1);
         rb_define_method(rb_cFloat, 'coerce', flo_coerce, 1);
       END
     end
@@ -1127,17 +1144,19 @@ class Red::MethodCompiler
     end
     
     def div
-      $mc.add_function :num_div, :fix_div
+      $mc.add_function :num_div, :fix_div, :rb_big_div
       <<-END
         rb_define_method(rb_cNumeric, 'div', num_div, 1);
+        rb_define_method(rb_cBignum, "div", rb_big_div, 1);
         rb_define_method(rb_cFixnum, 'div', fix_div, 1);
       END
     end
     
     def divmod
-      $mc.add_function :num_divmod, :fix_divmod, :flo_divmod
+      $mc.add_function :num_divmod, :fix_divmod, :flo_divmod, :rb_big_divmod
       <<-END
         rb_define_method(rb_cNumeric, 'divmod', num_divmod, 1);
+        rb_define_method(rb_cBignum, "divmod", rb_big_divmod, 1);
         rb_define_method(rb_cFixnum, 'divmod', fix_divmod, 1);
         rb_define_method(rb_cFloat, 'divmod', flo_divmod, 1);
       END
@@ -1372,10 +1391,11 @@ class Red::MethodCompiler
     def eql?
       $mc.add_function :rb_obj_equal, :range_eql, :rb_hash_eql, :rb_str_eql,
                        :rb_ary_eql, :num_eql, :flo_eql, :rb_struct_eql,
-                       :elem_eql, :time_eql
+                       :elem_eql, :time_eql, :rb_big_eql
       <<-END
         rb_define_method(rb_cTime, "eql?", time_eql, 1);
         rb_define_method(rb_cElement, 'eql?', elem_eql, 1);
+        rb_define_method(rb_cBignum, "eql?", rb_big_eql, 1);
         rb_define_method(rb_cNumeric, 'eql?', num_eql, 1);
         rb_define_method(rb_cStruct, 'eql?', rb_struct_eql, 1);
         rb_define_method(rb_cRange, 'eql?', range_eql, 1);
@@ -1525,9 +1545,10 @@ class Red::MethodCompiler
     end
     
     def fdiv
-      $mc.add_function :fix_quo
+      $mc.add_function :fix_quo, :rb_big_quo
       <<-END
         rb_define_method(rb_cFixnum, 'fdiv', fix_quo, 1);
+        rb_define_method(rb_cBignum, "fdiv", rb_big_quo, 1);
       END
     end
     
@@ -1781,10 +1802,12 @@ class Red::MethodCompiler
     
     def hash
       $mc.add_function :rb_obj_id, :range_hash, :rb_hash_hash, :rb_str_hash_m,
-                       :rb_ary_hash, :flo_hash, :rb_struct_hash, :time_hash
+                       :rb_ary_hash, :flo_hash, :rb_struct_hash, :time_hash,
+                       :rb_big_hash
       <<-END
         rb_define_method(rb_cRange, 'hash', range_hash, 0);
         rb_define_method(rb_cStruct, 'hash', rb_struct_hash, 0);
+        rb_define_method(rb_cBignum, "hash", rb_big_hash, 0);
         rb_define_method(rb_cTime, "hash", time_hash, 0);
         rb_define_method(rb_cString, 'hash', rb_str_hash_m, 0);
         rb_define_method(rb_mKernel, 'hash', rb_obj_id, 0);
@@ -2505,9 +2528,10 @@ class Red::MethodCompiler
     end
     
     def modulo
-      $mc.add_function :num_modulo, :fix_mod, :flo_mod
+      $mc.add_function :num_modulo, :fix_mod, :flo_mod, :rb_big_modulo
       <<-END
         rb_define_method(rb_cNumeric, 'modulo', num_modulo, 1);
+        rb_define_method(rb_cBignum, "modulo", rb_big_modulo, 1);
         rb_define_method(rb_cFixnum, 'modulo', fix_mod, 1);
         rb_define_method(rb_cFloat, 'modulo', flo_mod, 1);
       END
@@ -2884,9 +2908,10 @@ class Red::MethodCompiler
     end
     
     def quo
-      $mc.add_function :num_quo, :fix_quo
+      $mc.add_function :num_quo, :fix_quo, :rb_big_quo
       <<-END
         rb_define_method(rb_cNumeric, 'quo', num_quo, 1);
+        rb_define_method(rb_cBignum, "quo", rb_big_quo, 1);
         rb_define_method(rb_cFixnum, 'quo', fix_quo, 1);
       END
     end
@@ -2972,9 +2997,10 @@ class Red::MethodCompiler
     end
     
     def remainder
-      $mc.add_function :num_remainder
+      $mc.add_function :num_remainder, :rb_big_remainder
       <<-END
         rb_define_method(rb_cNumeric, 'remainder', num_remainder, 1);
+        rb_define_method(rb_cBignum, "remainder", rb_big_remainder, 1);
       END
     end
     
@@ -3350,10 +3376,11 @@ class Red::MethodCompiler
     end
     
     def size
-      $mc.add_function :rb_hash_size, :rb_str_length, :fix_size, :rb_struct_size
+      $mc.add_function :rb_hash_size, :rb_str_length, :fix_size, :rb_struct_size, :rb_big_size
       $mc.add_method :rb_ary_length
       <<-END
         rb_define_method(rb_cStruct, 'size', rb_struct_size, 0);
+        rb_define_method(rb_cBignum, "size", rb_big_size, 0);
         rb_define_method(rb_cHash,'size', rb_hash_size, 0);
         rb_define_method(rb_cString, 'size', rb_str_length, 0);
         rb_define_alias(rb_cArray,  'size', 'length');
@@ -3718,11 +3745,12 @@ class Red::MethodCompiler
     end
     
     def to_f
-      $mc.add_function :nil_to_f, :rb_str_to_f, :fix_to_f, :flo_to_f, :time_to_f
+      $mc.add_function :nil_to_f, :rb_str_to_f, :fix_to_f, :flo_to_f, :time_to_f, :rb_big_to_f
       <<-END
         rb_define_method(rb_cNilClass, 'to_f', nil_to_f, 0);
         rb_define_method(rb_cFixnum, 'to_f', fix_to_f, 0);
         rb_define_method(rb_cFloat, 'to_f', flo_to_f, 0);
+        rb_define_method(rb_cBignum, "to_f", rb_big_to_f, 0);
         rb_define_method(rb_cTime, "to_f", time_to_f, 0);
         rb_define_method(rb_cString, 'to_f', rb_str_to_f, 0);
       END

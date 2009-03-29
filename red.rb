@@ -979,6 +979,20 @@ module Red
   class Lit < String
     def initialize(value, options)
       case value.class.to_s
+      when 'Bignum'
+        if value < 0
+          bignum = -value
+          sign = 0
+        else
+          bignum = value
+          sign = 1
+        end
+        digits = (0...Preprocessor::RUBY_CONSTANTS[:DIGSPERLONG]).map do
+          old = bignum
+          bignum = bignum >> Preprocessor::RUBY_CONSTANTS[:BITSPERDIG]
+          old & (Preprocessor::RUBY_CONSTANTS[:BIGRAD] - 1)
+        end.inspect
+        self << "r(%s,%s,%s,%d)" % [$line, 0xfb, digits, sign]
       when 'Fixnum'
         self << "r(%s,%s,%d)" % [$line, 0xfc, value]
       when 'Float'
