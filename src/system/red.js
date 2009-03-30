@@ -1,4 +1,4 @@
-function r(line,type,a,b,c) {
+function r(line, type, a, b, c) {
   ruby_sourceline = line;
   switch (type) {
     case NODE_AND:
@@ -21,6 +21,11 @@ function r(line,type,a,b,c) {
     
     case NODE_BEGIN:
       return NEW_BEGIN(a);
+    
+    case 0xfb: // Bignum
+      var big = bignew(a.length, b);
+      big.digits = a;
+      return NEW_NODE(NODE_LIT, big, 0, 0);
     
     case NODE_BLOCK:
       for (var i = a.length, last = NEW_NODE(NODE_BLOCK, a[--i],0,0); i-- > 0; ) {
@@ -139,6 +144,9 @@ function r(line,type,a,b,c) {
     case NODE_LVAR:
       return NEW_LVAR(rb_intern(a));
     
+    case NODE_MASGN:
+      return NEW_MASGN(a, b);
+    
     case NODE_MODULE:
       return NEW_MODULE(a, b);
     
@@ -228,7 +236,7 @@ function jsprintf(f,ary) {
       o.push('%');
     } else if (m = /^\x25(?:(\d+)\$)?(\+)?(0|'[^$])?(-)?(\d+)?(?:\.(\d+))?([b-gosuxX])/.exec(f)) {
       if (((a = ary[m[1] || i++]) === null) || (typeof(a) == 'undefined')) { return o.join(''); } //throw("Too few arguments passed to sprintf"); }
-      if (/[^s]/.test(m[7]) && (typeof(a) != 'number')) { throw("Expecting number but found " + typeof(a)); }
+      if (/[^s]/.test(m[7]) && (typeof(a) != 'number')) { throw("Expecting number but found " + typeof(a) + ": " + a.toString()); }
       switch (m[7]) {
         case 'b': a = a.toString(2); break;
         case 'c': a = String.fromCharCode(a); break;

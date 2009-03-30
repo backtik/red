@@ -3,7 +3,7 @@ class Red::MethodCompiler
   def ary_alloc
     <<-END
       function ary_alloc(klass) {
-        var ary = NEWOBJ();
+        NEWOBJ(ary);
         OBJSETUP(ary, klass, T_ARRAY);
         ary.ptr = [];
         return ary;
@@ -158,6 +158,24 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def rb_ary_and
+    add_function :to_ary, :rb_ary_new, :ary_make_hash, :rb_ary_push
+    <<-END
+      function rb_ary_and(ary1, ary2) {
+        ary2 = to_ary(ary2);
+        var ary3 = rb_ary_new();
+        var hash = ary_make_hash(ary2, 0);
+        for (var v, vv, tmp, i = 0, l = ary1.ptr.length; i < l; ++i) {
+          v = vv = rb_ary_elt(ary1, i);
+          tmp = st_delete(hash.tbl, vv, 0);
+          if (tmp[0]) { rb_ary_push(ary3, v); }
+        }
+        return ary3;
+      }
+    END
+  end
+  
   # modified rb_range_beg_len to return array instead of using pointers
   def rb_ary_aref
     add_function :rb_ary_subseq, :rb_scan_args, :rb_ary_entry, :rb_raise, :rb_range_beg_len, :rb_num2long
@@ -217,6 +235,16 @@ class Red::MethodCompiler
         }
         rb_ary_store(ary, offset, argv[1]);
         return argv[1];
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_ary_at
+    add_function :rb_ary_entry
+    <<-END
+      function rb_ary_at(ary, pos) {
+        return rb_ary_entry(ary, NUM2LONG(pos));
       }
     END
   end
@@ -301,6 +329,19 @@ class Red::MethodCompiler
       function rb_ary_entry(ary, offset) {
         if (offset < 0) { offset += ary.ptr.length; }
         return rb_ary_elt(ary, offset);
+      }
+    END
+  end
+  
+  # renamed 'recursive_eql' to 'ary_recursive_eql'
+  def rb_ary_eql
+    add_function :rb_exec_recursive, :ary_recursive_eql
+    <<-END
+      function rb_ary_eql(ary1, ary2) {
+        if (ary1 == ary2) { return Qtrue; }
+        if (TYPE(ary2) != T_ARRAY) { return Qfalse; }
+        if (ary1.ptr.length != ary2.ptr.length) { return Qfalse; }
+        return rb_exec_recursive(ary_recursive_eql, ary1, ary2);
       }
     END
   end
@@ -512,6 +553,29 @@ class Red::MethodCompiler
         var ary = rb_ary_new();
         if (n > 0 && elts) { MEMCPY(ary.ptr, elts, n); }
         return ary;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_ary_or
+    add_function :to_ary, :rb_ary_new, :ary_make_hash, :rb_ary_elt, :rb_ary_push
+    <<-END
+      function rb_ary_or(ary1, ary2) {
+        ary2 = to_ary(ary2);
+        var ary3 = rb_ary_new();
+        var hash = ary_make_hash(ary1, ary2);
+        for (var v, vv, tmp, i = 0, l = ary1.ptr.length; i < l; ++i) {
+          v = vv = rb_ary_elt(ary1, i);
+          tmp = st_delete(hash.tbl, vv, 0);
+          if (tmp[0]) { rb_ary_push(ary3, v); }
+        }
+        for (i = 0, l = ary2.ptr.length; i < l; ++i) {
+          v = vv = rb_ary_elt(ary2, i);
+          tmp = st_delete(hash.tbl, vv, 0);
+          if (tmp[0]) { rb_ary_push(ary3, v); }
+        }
+        return ary3;
       }
     END
   end

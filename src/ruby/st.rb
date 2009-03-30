@@ -138,23 +138,25 @@ class Red::MethodCompiler
           if (value !== 0) { value = 0; }
           result = 0;
         }
-        if ((key == ptr.key) || (table.type.compare(key, ptr.key) === 0)) {
-          table.bins[hash_val] = ptr.next;
-          table.num_entries--;
-          if (value !== 0) { value = ptr.record; }
-          key = ptr.key;
-          delete(ptr);
-          result = 1;
-        }
-        for(; (ptr.next || 0) !== 0; ptr = ptr.next) {
-          if ((ptr.next.key == key) || (table.type.compare(ptr.next.key, key) === 0)) {
-            var tmp = ptr.next;
-            ptr.next = ptr.next.next;
+        if (ptr) {
+          if ((key == ptr.key) || (table.type.compare(key, ptr.key) === 0)) {
+            table.bins[hash_val] = ptr.next;
             table.num_entries--;
-            if (value !== 0) { value = tmp.record; }
-            key = tmp.key;
-            delete(tmp);
+            if (value !== 0) { value = ptr.record; }
+            key = ptr.key;
+            delete(ptr);
             result = 1;
+          }
+          for(; (ptr.next || 0) !== 0; ptr = ptr.next) {
+            if ((ptr.next.key == key) || (table.type.compare(ptr.next.key, key) === 0)) {
+              var tmp = ptr.next;
+              ptr.next = ptr.next.next;
+              table.num_entries--;
+              if (value !== 0) { value = tmp.record; }
+              key = tmp.key;
+              delete(tmp);
+              result = 1;
+            }
           }
         }
         return [result, value];
@@ -310,7 +312,7 @@ class Red::MethodCompiler
       function st_insert(table, key, value) {
         var hash_val = do_hash(key, table);
         var bin_pos = hash_val % table.num_bins;
-        if (!hash_val) { console.log(key); }
+        if (!hash_val) { console.log('!!'); console.log(key); }
         var ptr = table.bins[bin_pos];
         if (((ptr || 0) !== 0) && ((ptr.hash != hash_val) || !((key == ptr.key) || (table.type.compare(key, ptr.key) === 0)))) {
           while (((ptr.next || 0) !== 0) && ((ptr.next.hash != hash_val) || !((key == ptr.next.key) || (table.type.compare(key, ptr.next.key) === 0)))) { ptr = ptr.next; }

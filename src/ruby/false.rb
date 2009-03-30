@@ -1,14 +1,4 @@
 class Red::MethodCompiler
-  # changed rb_str_new2 to rb_str_new
-  def false_to_s
-    add_functions :rb_str_new
-    <<-END
-      function false_to_s(obj) {
-        return rb_str_new("false");
-      }
-    END
-  end
-  
   # verbatim
   def false_and
     <<-END
@@ -23,6 +13,16 @@ class Red::MethodCompiler
     <<-END
       function false_or(obj1, obj2) {
         return RTEST(obj2) ? Qtrue : Qfalse;
+      }
+    END
+  end
+  
+  # changed rb_str_new2 to rb_str_new
+  def false_to_s
+    add_functions :rb_str_new
+    <<-END
+      function false_to_s(obj) {
+        return rb_str_new("false");
       }
     END
   end

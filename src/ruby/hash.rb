@@ -28,7 +28,7 @@ class Red::MethodCompiler
     END
   end
   
-  # CHECK
+  # verbatim
   def hash_alloc
     add_function :hash_alloc0, :st_init_table
     <<-END
@@ -44,11 +44,24 @@ class Red::MethodCompiler
   def hash_alloc0
     <<-END
       function hash_alloc0(klass) {
-        var hash = NEWOBJ();
+        NEWOBJ(hash);
         OBJSETUP(hash, klass, T_HASH);
         hash.ifnone = Qnil;
         hash.iter_lev = 0;
         return hash;
+      }
+    END
+  end
+  
+  # renamed from 'each_i'
+  def hash_each_i
+    add_function :rb_yield, :rb_assoc_new
+    <<-END
+      function hash_each_i(key, value)
+      {
+        if (key == Qundef) { return ST_CONTINUE; }
+        rb_yield(rb_assoc_new(key, value));
+        return ST_CONTINUE;
       }
     END
   end
@@ -347,6 +360,28 @@ class Red::MethodCompiler
           if (tmp[0]) { return tmp[1]; }
         }
         return Qundef;
+      }
+    END
+  end
+  
+  # renamed 'each_i' to 'hash_each_i'
+  def rb_hash_each
+    add_function :rb_hash_foreach, :hash_each_i
+    <<-END
+      function rb_hash_each(hash) {
+        RETURN_ENUMERATOR(hash, 0, 0);
+        rb_hash_foreach(hash, hash_each_i, 0);
+        return hash;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_hash_eql
+    add_function :hash_equal
+    <<-END
+      function rb_hash_eql(hash1, hash2) {
+        return hash_equal(hash1, hash2, Qtrue);
       }
     END
   end

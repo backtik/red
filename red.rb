@@ -348,8 +348,9 @@ module Red
       MISC = {
         :ARY_MAX_SIZE       => 4294967295,
         :ARY_TMPLOCK        => 1 << (11 + 1),
-        :BIGRAD             => 1 << 16,
-        :BITSPERDIG         => 16,
+        :BIGRAD             => 1 << 12,
+        :BITSPERDIG         => 12,
+        :DIGSPERLONG        => 3,
         :ID_ALLOCATOR       => 1,
         :FIXNUM_FLAG        => 0x01,
         :SYMBOL_FLAG        => 0x0e,
@@ -363,7 +364,6 @@ module Red
         :DBL_MAX_EXP        => 1024,
         :DBL_MIN_10_EXP     => -307,
         :DBL_MAX_10_EXP     => 308,
-        :DIGSPERLONG        => 10,
         :DVAR_DONT_RECYCLE  => 1 << (11 + 2),
         :FRAME_DMETH        => 1,
         :HASH_DELETED       => 1 << (11 + 1),
@@ -525,13 +525,16 @@ module Red
       MISC = {
         :ADD_DIRECT      => "do{var entry;if(((%1$s).num_entries/(%1$s).num_bins)>5){rehash(%1$s);(%5$s)=(%4$s)%%(%1$s).num_bins;}entry={};entry.hash=(%4$s);entry.key=(%2$s);entry.record=(%3$s);entry.next=(%1$s).bins[(%5$s)];(%1$s).bins[(%5$s)]=entry;(%1$s).num_entries++;}while(0)",
         :BDIGITS         => "(%s).digits",
-        :BIGDN           => "((%s)<<BITSPERDIG)",
+        :BIGDN           => "((%s)>>BITSPERDIG)",
         :BIGLO           => "((%s)&(BIGRAD-1))",
-        :BIGUP           => "((%s)>>BITSPERDIG)",
+        :BIGUP           => "((%s)<<BITSPERDIG)",
+        :BIGZEROP        => "((%1$s).len == 0 || (((%1$s).digits[0] === 0) && (((%1$s).len == 1) || bigzero_p(%1$s))))",
         :bignew          => "bignew_1(rb_cBignum,%s,%s)",
         :BUILTIN_TYPE    => "((%s).basic.flags&T_MASK)",
+        :Data_Get_Struct => "do{rb_check_type(%1$s,T_DATA);var %2$s=%1$s.data;}while(0)",
         :do_hash         => "((%2$s).type.hash(%1$s))",
         :EXPR1           => "((((%s)>>3)^(%s))&CACHE_MASK)",
+        :FIX2INT         => "((%s)>>1)",
         :FIX2LONG        => "((%s)>>1)",
         :FIX2ULONG       => "((%s)>>1)",
         :FIXABLE         => "(((%1$s)<FIXNUM_MAX+1)&&((%1$s)>=FIXNUM_MIN))",
@@ -552,16 +555,19 @@ module Red
         :nd_set_line     => "((%1$s).flags=(((%1$s).flags&~(-1<<NODE_LSHIFT))|(((%2$s)&NODE_LMASK)<<NODE_LSHIFT)))",
         :nd_type         => "(((%s).flags>>FL_USHIFT)&0xff)",
         :NEW_NODE        => "rb_node_newnode(%s,%s,%s,%s)",
-        :NEWOBJ          => "{rvalue:last_value+=4}",
+        :NEWOBJ          => "var %s={rvalue:last_value+=4}",
         :NIL_P           => "((%s)==Qnil)",
         :NOEX_SAFE       => "((%s)>>4)",
         :NOEX_WITH       => "((%s)|(%s)<<4)",
+        :NUM2DBL         => "rb_num2dbl(%s)",
+        :NUM2INT         => "(((%1$s)&FIXNUM_FLAG)?((%1$s)>>1):rb_num2long(%1$s))",
         :NUM2LONG        => "(((%1$s)&FIXNUM_FLAG)?((%1$s)>>1):rb_num2long(%1$s))",
         :OBJ_FROZEN      => "(FL_ABLE(%1$s)?(%1$s).basic.flags&FL_FREEZE:0)",
         :OBJ_FREEZE      => "(FL_ABLE(%1$s)?(%1$s).basic.flags|=FL_FREEZE:0)",
         :OBJ_TAINT       => "(FL_ABLE(%1$s)?(%1$s).basic.flags|=FL_TAINT:0)",
         :OBJ_TAINTED     => "(FL_ABLE(%1$s)?(%1$s).basic.flags&FL_TAINT:0)",
         :OBJSETUP        => "((%s).basic={klass:(%s),flags:(%s)})",
+        :range           => "Math.max(%s, Math.min(%s, %s))",
         :rb_int_new      => "rb_int2inum(%s)",
         :return_value    => "do{if((prot_tag.retval=(%s))==Qundef){prot_tag.retval=Qnil;}}while(0)",
         :RETURN          => "throw({goto_flag:finish_flag,value:(%s)})",
@@ -973,6 +979,20 @@ module Red
   class Lit < String
     def initialize(value, options)
       case value.class.to_s
+      when 'Bignum'
+        if value < 0
+          bignum = -value
+          sign = 0
+        else
+          bignum = value
+          sign = 1
+        end
+        digits = []
+        until bignum == 0
+          digits.push(bignum & (Preprocessor::RUBY_CONSTANTS[:BIGRAD] - 1))
+          bignum = bignum >> Preprocessor::RUBY_CONSTANTS[:BITSPERDIG]
+        end
+        self << "r(%s,%s,%s,%d)" % [$line, 0xfb, digits.inspect, sign]
       when 'Fixnum'
         self << "r(%s,%s,%d)" % [$line, 0xfc, value]
       when 'Float'
@@ -982,6 +1002,17 @@ module Red
       when 'Symbol'
         self << "r(%s,%s,'%s')" % [$line, 0xff, value]
       end
+    end
+  end
+  
+  class Masgn < String
+    def initialize(args_array_sexp, rest_arg_sexp, value_sexp, options)
+      args_array = args_array_sexp.red!
+      rest_arg = rest_arg_sexp.red!
+    # value = value_sexp.red!
+    # self << "r(%s,%s,%s,%s,%s)" % [$line, TYPES[:NODE_MASGN], args_array, rest_arg, value]
+    # CHECK: a,b = 1,2 MASGN nodes are actually not built using NEW_MASGN, so 'value' is inappropriate here
+      self << "r(%s,%s,%s,%s)" % [$line, TYPES[:NODE_MASGN], args_array, rest_arg]
     end
   end
   

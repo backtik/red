@@ -74,10 +74,60 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def flo_divmod
+    add_function :rb_big2dbl, :rb_num_coerce_bin, :flodivmod, :rb_dbl2big, :rb_float_new, :rb_assoc_new
+    <<-END
+      function flo_divmod(x, y) {
+        var fy;
+        switch (TYPE(y)) {
+          case T_FIXNUM:
+            fy = FIX2LONG(y);
+            break;
+          case T_BIGNUM:
+            fy = rb_big2dbl(y);
+            break;
+          case T_FLOAT:
+            fy = y.value;
+            break;
+          default:
+            return rb_num_coerce_bin(x, y);
+        }
+        var tmp = flodivmod(x.value, fy);
+        var div = tmp[0];
+        var mod = tmp[1];
+        var a;
+        if (FIXABLE(div)) {
+          a = LONG2FIX(Math.round(div));
+        } else {
+          a = rb_dbl2big(div);
+        }
+        var b = rb_float_new(mod);
+        return rb_assoc_new(a, b);
+      }
+    END
+  end
+  
   # EMPTY
   def flo_eq
     <<-END
       function flo_eq() {}
+    END
+  end
+  
+  # verbatim
+  def flo_eql
+    add_function :isnan
+    <<-END
+      function flo_eql(x, y) {
+        if (TYPE(y) == T_FLOAT) {
+          var a = x.value;
+          var b = y.value;
+          if (isnan(a) || isnan(b)) { return Qfalse; }
+          if (a == b) { return Qtrue; }
+        }
+        return Qfalse;
+      }
     END
   end
   
@@ -337,6 +387,16 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def flo_uminus
+    add_function :rb_float_new
+    <<-END
+      function flo_uminus(flt) {
+        return rb_float_new(-flt.value);
+      }
+    END
+  end
+  
   # from http://kevin.vanzonneveld.net/techblog/article/javascript_equivalent_for_phps_fmod/
   def fmod
     <<-END
@@ -376,11 +436,22 @@ class Red::MethodCompiler
     END
   end
   
+  # added; returns array [integer_part, fractional_part]
+  def modf
+    <<-END
+      function modf(x) {
+        var i = (x > 0) ? Math.floor(x) : Math.ceil(x);
+        var f = (x + 1e-16) - (i - 1e-16);
+        return [i, f];
+      }
+    END
+  end
+  
   # verbatim
   def rb_float_new
     <<-END
       function rb_float_new(d) {
-        var flt = NEWOBJ();
+        NEWOBJ(flt);
         OBJSETUP(flt, rb_cFloat, T_FLOAT);
         flt.value = d;
         return flt;

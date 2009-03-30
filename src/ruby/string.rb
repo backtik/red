@@ -145,6 +145,25 @@ class Red::MethodCompiler
   end
   
   # CHECK
+  def rb_str_concat
+    add_function :rb_str_new
+    <<-END
+      function rb_str_concat(str1, str2) {
+        if (FIXNUM_P(str2)) {
+          int i = FIX2INT(str2);
+          if (0 <= i && i <= 0xff) { /* byte */
+            return rb_str_new(str.ptr + String.fromCharCode(i));
+          //return rb_str_cat(str1, &c, 1);
+          }
+        }
+        //str1 = rb_str_append(str1, str2);
+        str1.ptr += str2.ptr;
+        return str1;
+      }
+    END
+  end
+  
+  # CHECK
   def rb_str_dup
     add_function :str_alloc, :rb_obj_class, :rb_str_replace
     <<-END
@@ -152,6 +171,25 @@ class Red::MethodCompiler
         var dup = str_alloc(rb_obj_class(str));
         rb_str_replace(dup, str);
         return dup;
+      }
+    END
+  end
+  
+  # EMPTY
+  def rb_str_each_line
+    <<-END
+      function rb_str_each_line() {}
+    END
+  end
+  
+  # changed 'lesser' to JS 'Math.min'
+  def rb_str_eql
+    add_function :memcmp
+    <<-END
+      function rb_str_eql(str1, str2) {
+        if ((TYPE(str2) != T_STRING) || (str1.ptr.length != str2.ptr.length)) { return Qfalse; }
+        if (memcmp(str1.ptr, str2.ptr, Math.min(str1.ptr.length, str2.ptr.length)) === 0) { return Qtrue; }
+        return Qfalse;
       }
     END
   end
@@ -210,6 +248,21 @@ class Red::MethodCompiler
     <<-END
       function rb_str_hash_m(str) {
         return INT2FIX(rb_str_hash(str));
+      }
+    END
+  end
+  
+  # CHECK: look up what 'memchr' is
+  def rb_str_include
+    add_function :rb_string_value, :rb_str_index
+    <<-END
+      function rb_str_include(str, arg) {
+        if (FIXNUM_P(arg)) {
+          if (memchr(str.ptr, FIX2INT(arg), str.ptr.length)) { return Qtrue; }
+          return Qfalse;
+        }
+        rb_string_value(arg);
+        return (rb_str_index(str, arg, 0) == -1) ? Qfalse : Qtrue;
       }
     END
   end
@@ -385,6 +438,45 @@ class Red::MethodCompiler
     END
   end
   
+  # 
+  def rb_str_succ
+    <<-END
+      function rb_str_succ(orig) {
+        char *s;
+        int c = -1;
+        long n = 0;
+        var str = rb_str_new5(orig, orig.ptr, orig.ptr.length);
+        OBJ_INFECT(str, orig);
+        if (str.ptr.length === 0) { return str; }
+        var c = -1;
+        var n = 0;
+        var sp = str.ptr;
+        var s = str.ptr.length - 1;
+        while (s > -1) {
+          if (ISALNUM(sp[s])) {
+            if ((c = succ_char(s)) === 0) { break; }
+            n = s;
+          }
+          s--;
+        }
+        if (c == -1) { /* str contains no alnum */
+          s = str.ptr.length - 1;
+          c = '\001';
+          while (s > -1) {
+            if ((*s += 1) != 0) { break; }
+            s--;
+          }
+        }
+        if (s < 0) {
+          s = n;
+          memmove(s + 1, s, str.ptr.length - n);
+          sp[s] = c;
+        }
+        return str;
+      }
+    END
+  end
+  
   # removed 'len' handling
   def rb_str_times
     add_function :rb_str_new5, :rb_raise, :rb_num2long
@@ -485,7 +577,7 @@ class Red::MethodCompiler
   def str_alloc
     <<-END
       function str_alloc(klass) {
-        var str = NEWOBJ();
+        NEWOBJ(str);
         OBJSETUP(str, klass, T_STRING);
         str.ptr = 0;
         return str;
@@ -512,6 +604,31 @@ class Red::MethodCompiler
     <<-END
       function str_to_id(str) {
         return SYM2ID(rb_str_intern(str));
+      }
+    END
+  end
+  
+  # modified to return [rollover, s] instead of using pointer
+  def succ_char
+    <<-END
+      function succ_char(s) {
+        var rollover = 0;
+        var c = s;
+        if (('0' <= c) && (c < '9')) { /* numerics */
+          s = (+s + 1).toString();
+        } else if (c == '9') {
+          s = '0';
+          rollover = '1';
+        } else if ('a' <= c && c < 'z') { /* small alphabets */
+          s = String.fromCharCode(s.charCodeAt(0) + 1);
+        } else if (c == 'z') {
+          rollover = 'a';
+        } else if ('A' <= c && c < 'Z') { /* capital alphabets */
+          s = String.fromCharCode(s.charCodeAt(0) + 1);
+        } else if (c == 'Z') {
+          rollover = 'A';
+        }
+        return [rollover, s];
       }
     END
   end

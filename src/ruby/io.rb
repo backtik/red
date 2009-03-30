@@ -3,7 +3,7 @@ class Red::MethodCompiler
   def io_alloc
     <<-END
       function io_alloc(klass) {
-        var io = NEWOBJ();
+        NEWOBJ(io);
         OBJSETUP(io, klass, T_FILE);
         io.fptr = 0;
         return io;
@@ -40,6 +40,7 @@ class Red::MethodCompiler
     END
   end
   
+  # CHECK
   def lineno_setter
     <<-END
       function lineno_setter(val, id, variable) {

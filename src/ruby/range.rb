@@ -41,6 +41,68 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def range_each
+    add_function :rb_ivar_get, :rb_respond_to, :rb_raise, :rb_obj_classname,
+                 :rb_yield, :step_i, :rb_iterate, :range_each_func, :str_step,
+                 :range_each_i
+    <<-END
+      function range_each(range) {
+        RETURN_ENUMERATOR(range, 0, 0);
+        var beg = rb_ivar_get(range, id_beg);
+        var end = rb_ivar_get(range, id_end);
+        if (!rb_respond_to(beg, id_succ)) { rb_raise(rb_eTypeError, "can't iterate from %s", rb_obj_classname(beg)); }
+        if (FIXNUM_P(beg) && FIXNUM_P(end)) { /* fixnums are special */
+          var lim = FIX2LONG(end);
+          if (!EXCL(range)) { lim += 1; }
+          for (var i = FIX2LONG(beg); i < lim; ++i) {
+            rb_yield(LONG2NUM(i));
+          }
+        } else if (TYPE(beg) == T_STRING) {
+          var args = [beg, end, range];
+          var iter = [INT2FIX(1), INT2FIX(1)];
+          rb_iterate(str_step, args, step_i, iter);
+        } else {
+          range_each_func(range, range_each_i, beg, end, NULL);
+        }
+        return range;
+      }
+    END
+  end
+  
+  # verbatim
+  def range_each_func
+    add_function :r_lt, :r_le, :rb_funcall
+    add_method :succ
+    <<-END
+      function range_each_func(range, func, v, e, arg) {
+        var c;
+        if (EXCL(range)) {
+          while (r_lt(v, e)) {
+            func(v, arg);
+            v = rb_funcall(v, id_succ, 0, 0);
+          }
+        } else {
+          while (RTEST(c = r_le(v, e))) {
+            func(v, arg);
+            if (c == INT2FIX(0)) { break; }
+            v = rb_funcall(v, id_succ, 0, 0);
+          }
+        }
+      }
+    END
+  end
+  
+  # renamed from 'each_i'
+  def range_each_i
+    add_function :rb_yield
+    <<-END
+      function range_each_i(v, arg) {
+        rb_yield(v);
+      }
+    END
+  end
+  
+  # verbatim
   def range_eq
     add_function :rb_obj_is_instance_of, :rb_obj_class, :rb_equal, :rb_ivar_get
     <<-END
@@ -49,6 +111,21 @@ class Red::MethodCompiler
         if (!rb_obj_is_instance_of(obj, rb_obj_class(range))) { return Qfalse; }
         if (!rb_equal(rb_ivar_get(range, id_beg), rb_ivar_get(obj, id_beg))) { return Qfalse; }
         if (!rb_equal(rb_ivar_get(range, id_end), rb_ivar_get(obj, id_end))) { return Qfalse; }
+        if (EXCL(range) != EXCL(obj)) { return Qfalse; }
+        return Qtrue;
+      }
+    END
+  end
+  
+  # verbatim
+  def range_eql
+    add_function :rb_obj_is_instance_of, :rb_obj_class, :rb_eql, :rb_ivar_get
+    <<-END
+      function range_eql(range, obj) {
+        if (range == obj) { return Qtrue; }
+        if (!rb_obj_is_instance_of(obj, rb_obj_class(range))) { return Qfalse; }
+        if (!rb_eql(rb_ivar_get(range, id_beg), rb_ivar_get(obj, id_beg))) { return Qfalse; }
+        if (!rb_eql(rb_ivar_get(range, id_end), rb_ivar_get(obj, id_end))) { return Qfalse; }
         if (EXCL(range) != EXCL(obj)) { return Qfalse; }
         return Qtrue;
       }

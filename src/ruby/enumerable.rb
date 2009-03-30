@@ -18,6 +18,17 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def enum_member
+    add_function :rb_iterate, :rb_each, :member_i
+    <<-END
+      function enum_member(obj, val) {
+        rb_iterate(rb_each, obj, member_i, [val, Qfalse]);
+        return memo[1];
+      }
+    END
+  end
+  
+  # verbatim
   def enum_to_a
     add_function :rb_block_call, :collect_all, :rb_ary_new
     <<-END

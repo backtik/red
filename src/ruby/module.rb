@@ -172,6 +172,22 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def rb_mod_include_p
+    add_function :rb_check_type
+    <<-END
+      function rb_mod_include_p(mod, mod2) {
+        rb_check_type(mod2, T_MODULE);
+        for (var p = mod.superclass; p; p = p.superclass) {
+          if (BUILTIN_TYPE(p) == T_ICLASS) {
+            if (p.basic.klass == mod2) { return Qtrue; }
+          }
+        }
+        return Qfalse;
+      }
+    END
+  end
+  
   # INCOMPLETE -- CHECK ON ST FUNCTIONS
   def rb_mod_init_copy
     add_function :rb_obj_init_copy, :rb_singleton_class_clone, :clone_method, :st_init_numtable
@@ -257,6 +273,22 @@ class Red::MethodCompiler
           cbase = cbase.nd_next;
         }
         return ary;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_mod_public
+    add_function :secure_visibility, :set_method_visibility
+    <<-END
+      function rb_mod_public(argc, argv, module) {
+        secure_visibility(module);
+        if (argc == 0) {
+          SCOPE_SET(SCOPE_PUBLIC);
+        } else {
+          set_method_visibility(module, argc, argv, NOEX_PUBLIC);
+        }
+        return module;
       }
     END
   end

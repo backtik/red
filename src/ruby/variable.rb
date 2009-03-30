@@ -140,6 +140,56 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def generic_ivar_defined
+    add_function :st_lookup
+    <<-END
+      function generic_ivar_defined(obj, id) {
+        // removed check for generic_iv_tbl
+        var tmp = st_lookup(generic_iv_tbl, obj);
+        if (!tmp[0]) { return Qfalse; }
+        return (st_lookup(tmp[1], id)[0]) ? Qtrue : Qfalse;
+      }
+    END
+  end
+  
+  # verbatim
+  def generic_ivar_get
+    add_function :st_lookup
+    <<-END
+      function generic_ivar_get(obj, id, warn) {
+        // removed check for generic_iv_tbl
+        var tmp = st_lookup(generic_iv_tbl, obj);
+        if (tmp[0]) {
+          var tmp2 = st_lookup(tmp[1], id);
+          if (tmp2[0]) { return tmp2[1]; }
+        }
+        // removed warning
+        return Qnil;
+      }
+    END
+  end
+  
+  # verbatim
+  def generic_ivar_set
+    add_functions :rb_special_const_p, :st_init_numtable, :st_add_direct, :st_insert, :st_lookup
+    <<-END
+      function generic_ivar_set(obj, id, val) {
+        if (rb_special_const_p(obj)) { special_generic_ivar = 1; }
+        // removed check for generic_iv_tbl
+        var tmp = st_lookup(generic_iv_tbl, obj);
+        if (!tmp[0]) {
+          FL_SET(obj, FL_EXIVAR);
+          var tbl = st_init_numtable();
+          st_add_direct(generic_iv_tbl, obj, tbl);
+          st_add_direct(tbl, id, val);
+          return;
+        }
+        st_insert(tmp[1], id, val);
+      }
+    END
+  end
+  
+  # verbatim
   def global_id
     add_function :rb_intern
     <<-END
@@ -179,6 +229,44 @@ class Red::MethodCompiler
         if (OBJ_FROZEN(klass)) { rb_error_frozen((BUILTIN_TYPE(klass) == T_MODULE) ? "module" : "class"); }
         if (!klass.iv_tbl) { klass.iv_tbl = st_init_numtable(); } // removed 'autoload' call
         st_insert(klass.iv_tbl, id, val);
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_alias_variable
+    add_functions :rb_raise, :rb_global_entry, :st_lookup, :st_add_direct
+    <<-END
+      function rb_alias_variable(name1, name2) {
+        struct global_entry *entry1, *entry2;
+        st_data_t data1;
+        if (ruby_safe_level >= 4) { rb_raise(rb_eSecurityError, "Insecure: can't alias global variable"); }
+        var entry1;
+        var entry2 = rb_global_entry(name2);
+        var tmp = st_lookup(rb_global_tbl, name1);
+        if (!tmp[0]) {
+          entry1 = {};
+          entry1.id = name1;
+          st_add_direct(rb_global_tbl, name1, entry1);
+      //} else if ((entry1 = tmp[1]).variable != entry2.variable) {
+      //  var variable = entry1.variable
+      //  if (variable.block_trace) { rb_raise(rb_eRuntimeError, "can't alias in tracer"); }
+      //  variable.counter--;
+      //  if (variable.counter === 0) {
+      //    var trace = variable.trace;
+      //    while (trace) {
+      //      struct trace_var *next = trace->next;
+      //      var next = trace.next;
+      //      free(trace);
+      //      trace = next;
+      //    }
+      //    free(variable);
+      //  }
+        } else {
+          return;
+        }
+        entry2.variable.counter++;
+        entry1.variable = entry2.variable;
       }
     END
   end
@@ -337,6 +425,28 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def rb_copy_generic_ivar
+    add_function :st_lookup, :st_free_table, :st_insert, :st_copy, :st_add_direct
+    <<-END
+      function rb_copy_generic_ivar(clone, obj) {
+        if (!generic_iv_tbl) { return; }
+        if (!FL_TEST(obj, FL_EXIVAR)) { return; }
+        var tmp = st_lookup(generic_iv_tbl, obj);
+        if (tmp[0]) {
+          var tbl = tmp[1];
+          tmp = st_lookup(generic_iv_tbl, clone);
+          if (tmp[0]) {
+            st_free_table(tmp[1]);
+            st_insert(generic_iv_tbl, clone, st_copy(tbl));
+          } else {
+            st_add_direct(generic_iv_tbl, clone, st_copy(tbl));
+          }
+        }
+      }
+    END
+  end
+  
+  # verbatim
   def rb_cvar_get
     add_functions :rb_name_error, :rb_id2name, :rb_class2name
     <<-END
@@ -397,6 +507,43 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def rb_define_hooked_variable
+    add_function :global_id, :rb_global_entry, :var_getter, :var_setter
+    <<-END
+      function rb_define_hooked_variable(name, variable, getter, setter) {
+        var id = global_id(name);
+        var gvar = rb_global_entry(id).variable;
+        gvar.data = variable;
+        gvar.getter = getter ? getter : var_getter;
+        gvar.setter = setter ? setter : var_setter;
+      //gvar.marker = var_marker;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_define_variable
+    add_function :rb_define_hooked_variable
+    <<-END
+      function rb_define_variable(name, vars) {
+        rb_define_hooked_variable(name, vars, 0, 0);
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_define_virtual_variable
+    add_function :val_getter, :readonly_setter, :rb_define_hooked_variable
+    <<-END
+      function rb_define_virtual_variable(name, getter, setter) {
+        if (!getter) { getter = val_getter; }
+        if (!setter) { setter = readonly_setter; }
+        rb_define_hooked_variable(name, 0, getter, setter);
+      }
+    END
+  end
+  
+  # verbatim
   def rb_dvar_push
     add_function :new_dvar
     <<-END
@@ -430,6 +577,36 @@ class Red::MethodCompiler
           st_add_direct(rb_global_tbl, id, entry);
         }
         return entry;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_gvar_get
+    <<-END
+      function rb_gvar_get(entry) {
+        var variable = entry.variable;
+        return variable.getter(entry.id, variable.data, variable);
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_gvar_set
+    add_function :rb_raise, :rb_ensure
+    <<-END
+      function rb_gvar_set(entry, val) {
+        var trace = {};
+        var variable = entry.variable;
+        if (ruby_safe_level >= 4) { rb_raise(rb_eSecurityError, "Insecure: can't change global variable value"); }
+        variable = variable.setter(val, entry.id, variable.data, variable);
+      //if (variable.trace && !variable.block_trace) {
+      //  variable.block_trace = 1;
+      //  trace.trace = variable.trace;
+      //  trace.val = val;
+      //  rb_ensure(trace_ev, trace, trace_en, variable);
+      //}
+        return val;
       }
     END
   end
@@ -575,6 +752,16 @@ class Red::MethodCompiler
           var str = rb_str_new(base_name + "::" + name);
         }
         rb_ivar_set(klass, classpath, str);
+      }
+    END
+  end
+  
+  # verbatim
+  def readonly_setter
+    add_function :rb_name_error, :rb_id2name
+    <<-END
+      function readonly_setter(val, id, variable) {
+        rb_name_error(id, "%s is a read-only variable", rb_id2name(id));
       }
     END
   end

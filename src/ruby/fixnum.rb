@@ -1,4 +1,16 @@
 class Red::MethodCompiler
+  # verbatim
+  def fix_and
+    add_function :fix_coerce, :rb_big_and
+    <<-END
+      function fix_and(x, y) {
+        if (!FIXNUM_P(y = fix_coerce(y))) { return rb_big_and(y, x); }
+        var val = FIX2LONG(x) & FIX2LONG(y);
+        return LONG2NUM(val);
+      }
+    END
+  end
+  
   # removed a check against 'sizeof(VALUE)*CHAR_BIT'
   def fix_aref
     add_function :fix_coerce, :rb_big_norm
@@ -59,6 +71,20 @@ class Red::MethodCompiler
         if (FIXNUM_P(y)) {
           var tmp = fixdivmod(FIX2LONG(x), FIX2LONG(y));
           return LONG2NUM(tmp[0]);
+        }
+        return rb_num_coerce_bin(x, y);
+      }
+    END
+  end
+  
+  # modified fixdivmod to return array instead of using pointers
+  def fix_divmod
+    add_function :fixdivmod, :rb_assoc_new, :rb_num_coerce_bin
+    <<-END
+      function fix_divmod(x, y) {
+        if (FIXNUM_P(y)) {
+          var tmp = fixdivmod(FIX2LONG(x), FIX2LONG(y));
+          return rb_assoc_new(LONG2NUM(tmp[0]), LONG2NUM(tmp[1]));
         }
         return rb_num_coerce_bin(x, y);
       }
@@ -201,6 +227,18 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def fix_or
+    add_function :fix_coerce, :rb_big_or
+    <<-END
+      function fix_or(x, y) {
+        if (!FIXNUM_P(y = fix_coerce(y))) { return rb_big_or(y, x); }
+        var val = FIX2LONG(x) | FIX2LONG(y);
+        return LONG2NUM(val);
+      }
+    END
+  end
+  
   # CHECK
   def fix_plus
     add_function :rb_float_new, :rb_num_coerce_bin
@@ -289,6 +327,21 @@ class Red::MethodCompiler
       function rb_fix2str(x, base) {
         if (base < 2 || 36 < base) { rb_raise(rb_eArgError, "illegal radix %d", base); }
         return rb_str_new(FIX2LONG(x).toString(base));
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_fix_lshift
+    add_function :rb_big_lshift, :rb_int2big, :fix_rshift, :fix_lshift
+    <<-END
+      function rb_fix_lshift(x, y) {
+        long val, width;
+        var val = NUM2LONG(x);
+        if (!FIXNUM_P(y)) { return rb_big_lshift(rb_int2big(val), y); }
+        width = FIX2LONG(y);
+        if (width < 0) { return fix_rshift(val, -width); }
+        return fix_lshift(val, width);
       }
     END
   end
