@@ -43,7 +43,7 @@ class Red::MethodCompiler
   # verbatim
   def range_each
     add_function :rb_ivar_get, :rb_respond_to, :rb_raise, :rb_obj_classname,
-                 :rb_yield, :step_i, :rb_iterate, :range_each_func, :str_step,
+                 :rb_yield, :step_i, :str_step, :range_each_func, :rb_iterate,
                  :range_each_i
     <<-END
       function range_each(range) {
@@ -282,6 +282,27 @@ class Red::MethodCompiler
         var range = rb_obj_alloc(rb_cRange);
         range_init(range, beg, end, exclude_end);
         return range;
+      }
+    END
+  end
+  
+  # verbatim
+  def step_i
+    add_function :rb_funcall, :rb_yield
+    add_method :-
+    <<-END
+      function step_i(i, arg) {
+        var iter = arg;
+        if (FIXNUM_P(iter[0])) {
+          iter[0] -= INT2FIX(1) & ~FIXNUM_FLAG;
+        } else {
+          iter[0] = rb_funcall(iter[0], '-', 1, INT2FIX(1));
+        }
+        if (iter[0] == INT2FIX(0)) {
+          rb_yield(i);
+          iter[0] = iter[1];
+        }
+        return Qnil;
       }
     END
   end

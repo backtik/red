@@ -10,6 +10,29 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def collect_i
+    add_function :rb_yield, :rb_ary_push
+    <<-END
+      function collect_i(i, ary) {
+        rb_ary_push(ary, rb_yield(i));
+        return Qnil;
+      }
+    END
+  end
+  
+  # verbatim
+  def enum_collect
+    add_function :rb_iterate, :rb_each, :rb_ary_new, :rb_block_given_p, :collect_all, :collect_i
+    <<-END
+      function enum_collect(obj) {
+        var ary = rb_ary_new();
+        rb_iterate(rb_each, obj, rb_block_given_p() ? collect_i : collect_all, ary);
+        return ary;
+      }
+    END
+  end
+  
   # EMPTY
   def enum_find
     <<-END
@@ -22,7 +45,8 @@ class Red::MethodCompiler
     add_function :rb_iterate, :rb_each, :member_i
     <<-END
       function enum_member(obj, val) {
-        rb_iterate(rb_each, obj, member_i, [val, Qfalse]);
+        var memo = [val, Qfalse];
+        rb_iterate(rb_each, obj, member_i, memo);
         return memo[1];
       }
     END
@@ -36,6 +60,31 @@ class Red::MethodCompiler
         var ary = rb_ary_new();
         rb_block_call(obj, id_each, argc, argv, collect_all, ary);
         return ary;
+      }
+    END
+  end
+  
+  # verbatim
+  def member_i
+    add_function :rb_equal, :rb_iter_break
+    <<-END
+      function member_i(item, memo) {
+        if (rb_equal(item, memo[0])) {
+          memo[1] = Qtrue;
+          rb_iter_break();
+        }
+        return Qnil;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_each
+    add_function :rb_funcall
+    add_method :each
+    <<-END
+      function rb_each(obj) {
+        return rb_funcall(obj, id_each, 0, 0);
       }
     END
   end

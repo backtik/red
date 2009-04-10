@@ -23,6 +23,21 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def int_succ
+    add_function :rb_funcall
+    add_method :+
+    <<-END
+      function int_succ(num) {
+        if (FIXNUM_P(num)) {
+          var i = FIX2LONG(num) + 1;
+          return LONG2NUM(i);
+        }
+        return rb_funcall(num, '+', 1, INT2FIX(1));
+      }
+    END
+  end
+  
+  # verbatim
   def int_to_i
     <<-END
       function int_to_i(num) {

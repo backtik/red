@@ -168,6 +168,16 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def rb_define_alias
+    add_function :rb_alias, :rb_intern
+    <<-END
+      function rb_define_alias(klass, name1, name2) {
+        rb_alias(klass, rb_intern(name1), rb_intern(name2));
+      }
+    END
+  end
+  
+  # verbatim
   def rb_define_class
     add_function :rb_const_defined, :rb_const_get, :rb_raise,
                  :rb_class_real, :rb_name_error, :rb_define_class_id,

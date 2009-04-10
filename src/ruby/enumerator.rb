@@ -1,11 +1,11 @@
 class Red::MethodCompiler
   # expanded 'Data_Make_Struct'
   def enumerator_allocate
-    add_function :rb_data_object_alloc
+    add_function :rb_data_object_alloc, :enumerator_mark
     <<-END
       function enumerator_allocate(klass) {
         var ptr = {};
-        var enum_obj = rb_data_object_alloc(klass, ptr, 0, -1);
+        var enum_obj = rb_data_object_alloc(klass, ptr, enumerator_mark, -1);
         ptr.obj = Qundef;
         return enum_obj;
       }
@@ -88,6 +88,13 @@ class Red::MethodCompiler
         }
         return enumerator_init(obj, recv, meth, argc, argv.slice(argvp));
       }
+    END
+  end
+  
+  # exists as a placeholder for identifying enumerator Data structs
+  def enumerator_mark
+    <<-END
+      function enumerator_mark() {}
     END
   end
   

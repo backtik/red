@@ -1,5 +1,16 @@
 class Red::MethodCompiler
   # verbatim
+  def fix_abs
+    <<-END
+      function fix_abs(fix) {
+        var i = FIX2LONG(fix);
+        if (i < 0) { i = -i; }
+        return LONG2NUM(i);
+      }
+    END
+  end
+  
+  # verbatim
   def fix_and
     add_function :fix_coerce, :rb_big_and
     <<-END
@@ -251,6 +262,15 @@ class Red::MethodCompiler
     END
   end
   
+  # CHECK: replaced 'sizeof(long)' with '4'
+  def fix_size
+    <<-END
+      function fix_size(fix) {
+        return INT2FIX(4);
+      }
+    END
+  end
+  
   # verbatim
   def fix_to_f
     <<-END
@@ -277,6 +297,18 @@ class Red::MethodCompiler
     <<-END
       function fix_uminus(num) {
         return LONG2NUM(-FIX2LONG(num));
+      }
+    END
+  end
+  
+  # verbatim
+  def fix_xor
+    add_function :fix_coerce, :rb_big_xor
+    <<-END
+      function fix_xor(x, y) {
+        if (!FIXNUM_P(y = fix_coerce(y))) { return rb_big_xor(y, x); }
+        var val = FIX2LONG(x) ^ FIX2LONG(y);
+        return LONG2NUM(val);
       }
     END
   end
