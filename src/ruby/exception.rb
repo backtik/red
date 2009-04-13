@@ -99,13 +99,20 @@ class Red::MethodCompiler
     END
   end
   
+  # exists as a placeholder to identify name_err_mesg blocks
+  def name_err_mesg_mark
+    <<-END
+      function name_err_mesg_mark() {};
+    END
+  end
+  
   # unpacked Data_Wrap_Struct
   def name_err_mesg_new
     add_function :rb_data_object_alloc
     <<-END
       function name_err_mesg_new(obj, mesg, recv, method) {
         var ptr = [mesg, recv, method];
-        return rb_data_object_alloc(rb_cNameErrorMesg, ptr);
+        return rb_data_object_alloc(rb_cNameErrorMesg, ptr, name_err_mesg_mark);
       }
     END
   end

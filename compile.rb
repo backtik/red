@@ -12,6 +12,8 @@ require 'src/ruby/float'
 require 'src/ruby/hash'
 require 'src/ruby/integer'
 require 'src/ruby/io'
+require 'src/ruby/match'
+require 'src/ruby/math'
 require 'src/ruby/method'
 require 'src/ruby/module'
 require 'src/ruby/nil'
@@ -21,6 +23,7 @@ require 'src/ruby/parse'
 require 'src/ruby/precision'
 require 'src/ruby/proc'
 require 'src/ruby/range'
+require 'src/ruby/regexp'
 require 'src/ruby/st'
 require 'src/ruby/string'
 require 'src/ruby/struct'
@@ -337,10 +340,10 @@ class Red::MethodCompiler
                        :styles_aref, :rb_big_aref
       <<-END
         rb_define_method(rb_cStyles, '[]', styles_aref, 1);
-        rb_define_method(rb_cBignum, "[]", rb_big_aref, 1);
+      //rb_define_method(rb_cBignum, "[]", rb_big_aref, 1);
         rb_define_method(rb_cProperties, '[]', prop_aref, 1);
         rb_define_module_function(rb_mDocument, '[]', elem_find, 1);
-        rb_define_method(rb_cStruct, '[]', rb_struct_aref, 1);
+      //rb_define_method(rb_cStruct, '[]', rb_struct_aref, 1);
         rb_define_method(rb_cMethod, '[]', method_call, -1);
         rb_define_method(rb_cString, '[]', rb_str_aref_m, -1);
         rb_define_singleton_method(rb_cHash, '[]', rb_hash_s_create, -1);
@@ -1245,8 +1248,8 @@ class Red::MethodCompiler
     end
     
     def each
-      $mc.add_function :range_each, :rb_hash_each, :rb_str_each_line,
-                       :rb_ary_each, :rb_struct_each, :enumerator_each
+      $mc.add_function :rb_hash_each, :rb_str_each_line, :rb_ary_each,
+                       :rb_struct_each, :enumerator_each, :range_each
       <<-END
         rb_define_method(rb_cRange, 'each', range_each, 0);
         rb_define_method(rb_cStruct, 'each', rb_struct_each, 0);
@@ -1948,7 +1951,7 @@ class Red::MethodCompiler
       <<-END
         rb_define_method(rb_cArray, 'index', rb_ary_index, -1);
         rb_define_method(rb_cHash,'index', rb_hash_index, 1);
-        rb_define_method(rb_cString, 'index', rb_str_index_m, -1);
+      //rb_define_method(rb_cString, 'index', rb_str_index_m, -1);
       END
     end
     
@@ -2381,9 +2384,10 @@ class Red::MethodCompiler
     end
     
     def match
-      $mc.add_function :rb_str_match_m
+      $mc.add_function :rb_str_match_m, :rb_reg_match_m
       <<-END
         rb_define_method(rb_cString, 'match', rb_str_match_m, 1);
+        rb_define_method(rb_cRegexp, 'match', rb_reg_match_m, 1);
       END
     end
     
@@ -3407,14 +3411,14 @@ class Red::MethodCompiler
     end
     
     def size
-      $mc.add_function :rb_hash_size, :rb_str_length, :fix_size, :rb_struct_size, :rb_big_size
-      $mc.add_method :rb_ary_length
+      $mc.add_function :rb_hash_size, :rb_str_length, :fix_size, :rb_struct_size, :rb_big_size, :rb_define_alias
+      $mc.add_method :length
       <<-END
         rb_define_method(rb_cStruct, 'size', rb_struct_size, 0);
         rb_define_method(rb_cBignum, "size", rb_big_size, 0);
         rb_define_method(rb_cHash,'size', rb_hash_size, 0);
         rb_define_method(rb_cString, 'size', rb_str_length, 0);
-        rb_define_alias(rb_cArray,  'size', 'length');
+        rb_define_alias(rb_cArray, 'size', 'length');
         rb_define_method(rb_cFixnum, 'size', fix_size, 0);
       END
     end
@@ -3459,7 +3463,7 @@ class Red::MethodCompiler
     end
     
     def split
-      $mc.add_function :rb_str_split_m, :rb_define_global_function
+      $mc.add_function :rb_str_split_m, :rb_define_global_function, :rb_f_split
       <<-END
         rb_define_method(rb_cString, 'split', rb_str_split_m, -1);
         rb_define_global_function('split', rb_f_split, -1);
@@ -3604,10 +3608,10 @@ class Red::MethodCompiler
     end
     
     def succ
-      $mc.add_function :rb_str_succ, :int_succ, :time_succ
+      $mc.add_function :int_succ, :time_succ#, :rb_str_succ
       <<-END
-        rb_define_method(rb_cTime, "succ", time_succ, 0);
-        rb_define_method(rb_cString, 'succ', rb_str_succ, 0);
+        rb_define_method(rb_cTime, 'succ', time_succ, 0);
+      //rb_define_method(rb_cString, 'succ', rb_str_succ, 0);
         rb_define_method(rb_cInteger, 'succ', int_succ, 0);
       END
     end
@@ -3750,10 +3754,11 @@ class Red::MethodCompiler
     
     def to_a
       $mc.add_function :nil_to_a, :enum_to_a, :rb_hash_to_a, :rb_ary_to_a,
-                       :rb_struct_to_a, :time_to_a
+                       :rb_struct_to_a, :time_to_a, :match_to_a
       <<-END
         rb_define_method(rb_cStruct, 'to_a', rb_struct_to_a, 0);
-        rb_define_method(rb_cTime, "to_a", time_to_a, 0);
+        rb_define_method(rb_cMatch, 'to_a', match_to_a, 0);
+        rb_define_method(rb_cTime, 'to_a', time_to_a, 0);
         rb_define_method(rb_mEnumerable, 'to_a', enum_to_a, -1);
         rb_define_method(rb_cHash,'to_a', rb_hash_to_a, 0);
         rb_define_method(rb_cNilClass, 'to_a', nil_to_a, 0);
@@ -4770,10 +4775,16 @@ class Red::MethodCompiler
       END
     end
     
-    # pulled from Init_Regexp, EMPTY
+    # pulled from Init_Regexp
     def Init_MatchData
+      add_function :rb_define_class, :rb_define_global_const, :rb_define_alloc_func, :match_alloc, :rb_undef_method
       <<-END
-        function Init_MatchData() {}
+        function Init_MatchData() {
+          rb_cMatch = rb_define_class("MatchData", rb_cObject);
+          rb_define_global_const("MatchingData", rb_cMatch);
+          rb_define_alloc_func(rb_cMatch, match_alloc);
+          rb_undef_method(CLASS_OF(rb_cMatch), "new");
+        }
       END
     end
     
@@ -4947,10 +4958,15 @@ class Red::MethodCompiler
       END
     end
     
-    # EMPTY
+    # INCOMPLETE
     def Init_Regexp
+      add_function :rb_reg_new, :rb_define_class
       <<-END
-        function Init_Regexp() {}
+        function Init_Regexp() {
+          rb_eRegexpError = rb_define_class('RegexpError', rb_eStandardError);
+          rb_cRegexp = rb_define_class("Regexp", rb_cObject);
+          
+        }
       END
     end
     
@@ -5353,6 +5369,29 @@ class Red::MethodCompiler
             block = tmp;
           }
         }
+      END
+    end
+    
+    # CHECK
+    def blk_dup
+      add_function :frame_dup, :blk_copy_prev
+      <<-END
+        function blk_dup(dup, orig) {
+          MEMCPY(dup, orig, 1);
+          frame_dup(dup.frame);
+          if (dup.iter) {
+            blk_copy_prev(dup);
+          } else {
+            dup.prev = 0;
+          }
+        }
+      END
+    end
+    
+    # empty placeholder to identify Data structs as procs
+    def blk_mark
+      <<-END
+        function blk_mark() {};
       END
     end
     
@@ -6101,6 +6140,7 @@ class Red::MethodCompiler
       END
     end
     
+    # verbatim
     def print_undef
       add_function :rb_name_error, :rb_id2name, :rb_class2name
       <<-END
@@ -7631,6 +7671,16 @@ class Red::MethodCompiler
       END
     end
     
+    # verbatim
+    def rb_iter_break
+      add_function :break_jump
+      <<-END
+        function rb_iter_break() {
+          break_jump(Qnil);
+        }
+      END
+    end
+    
     # unwound 'goto' architecture, expanded EXEC_TAG
     def rb_iterate
       <<-END
@@ -7946,11 +7996,29 @@ class Red::MethodCompiler
       END
     end
     
-    # CHECK
+    # verbatim
     def rb_special_const_p
       <<-END
         function rb_special_const_p(obj) {
           return SPECIAL_CONST_P(obj) ? Qtrue : Qfalse;
+        }
+      END
+    end
+    
+    # verbatim
+    def rb_svar
+      <<-END
+        function rb_svar(cnt) {
+          var vars = ruby_dyna_vars;
+          if (!ruby_scope.local_tbl) { return 0; }
+          if (cnt >= ruby_scope.local_tbl[0]) { return 0; }
+          var id = ruby_scope.local_tbl[cnt + 1];
+          while (vars) {
+            if (vars.id == id) { return vars.val; }
+            vars = vars.next;
+          }
+          if (ruby_scope.local_vars === 0) { return 0; }
+          return ruby_scope.local_vars[cnt];
         }
       END
     end

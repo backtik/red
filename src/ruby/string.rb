@@ -42,6 +42,16 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def rb_f_split
+    add_function :rb_str_split_m, :uscore_get
+    <<-END
+      function rb_f_split(argc, argv) {
+        return rb_str_split_m(argc, argv, uscore_get());
+      }
+    END
+  end
+  
   # CHECK
   def rb_obj_as_string
     add_function :rb_funcall, :rb_any_to_s
@@ -163,6 +173,18 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def rb_str_delete
+    add_function :rb_str_dup, :rb_str_delete_bang
+    <<-END
+      function rb_str_delete(argc, argv, str) {
+        str = rb_str_dup(str);
+        rb_str_delete_bang(argc, argv, str);
+        return str;
+      }
+    END
+  end
+  
   # CHECK
   def rb_str_dup
     add_function :str_alloc, :rb_obj_class, :rb_str_replace
@@ -179,6 +201,15 @@ class Red::MethodCompiler
   def rb_str_each_line
     <<-END
       function rb_str_each_line() {}
+    END
+  end
+  
+  # verbatim
+  def rb_str_empty
+    <<-END
+      function rb_str_empty(str) {
+        return (str.ptr.length === 0) ? Qtrue : Qfalse;
+      }
     END
   end
   
@@ -267,6 +298,24 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def rb_str_index
+    add_function :rb_memsearch
+    <<-END
+      function rb_str_index(str, sub, offset) {
+        if (offset < 0) {
+          offset += str.ptr.length;
+          if (offset < 0) { return -1; }
+        }
+        if ((str.ptr.length - offset) < sub.ptr.length) { return -1; }
+        if (sub.ptr.length === 0) { return offset; }
+        var pos = rb_memsearch(sub.ptr, sub.ptr.length, str.ptr + offset, str.ptr.length - offset);
+        if (pos < 0) { return pos; }
+        return pos + offset;
+      }
+    END
+  end
+  
   # expanded rb_scan_args
   def rb_str_init
     add_function :rb_scan_args, :rb_str_replace
@@ -280,7 +329,24 @@ class Red::MethodCompiler
     END
   end
   
-  # TOTALLY WRONG
+  # verbatim
+  def rb_str_insert
+    add_function :rb_str_splice
+    <<-END
+      function rb_str_insert(str, idx, str2) {
+        var pos = NUM2LONG(idx);
+        if (pos == -1) {
+          pos = str.ptr.length;
+        } else if (pos < 0) {
+          pos++;
+        }
+        rb_str_splice(str, pos, 0, str2);
+        return str;
+      }
+    END
+  end
+  
+  # CHECK: TOTALLY WRONG
   def rb_str_inspect
     <<-END
       function rb_str_inspect(str) {
@@ -308,6 +374,17 @@ class Red::MethodCompiler
     <<-END
       function rb_str_length(str) {
         return LONG2NUM(str.ptr.length);
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_str_match_m
+    add_function :rb_funcall, :get_pat
+    add_method :match
+    <<-END
+      function rb_str_match_m(str, re) {
+        return rb_funcall(get_pat(re, 0), rb_intern('match'), 1, str);
       }
     END
   end
@@ -392,6 +469,22 @@ class Red::MethodCompiler
       function rb_str_setter(val, id, variable) {
         if (!NIL_P(val) && (TYPE(val) != T_STRING)) { rb_raise(rb_eTypeError, "value of %s must be String", rb_id2name(id)); }
         return val;
+      }
+    END
+  end
+  
+  # CHECK: this is a substitute for the real function, using the simple JS 'split' function and allowing only one argument
+  def rb_str_split_m
+    <<-END
+      function rb_str_split_m(argc, argv, str) {
+        var tmp = rb_scan_args(argc, argv, "02");
+        var spat = tmp[1];
+        var ary = rb_ary_new();
+        var tmp = str.ptr.split(spat.ptr || ' ');
+        for (var i = 0, l = tmp.length; i < l; ++i) {
+          ary.ptr.push(rb_str_new(tmp[i]));
+        }
+        return ary;
       }
     END
   end
@@ -599,6 +692,16 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def str_step
+    add_function :rb_str_upto
+    <<-END
+      function str_step(args) {
+        return rb_str_upto(args[0], args[1], EXCL(args[2]));
+      }
+    END
+  end
+  
+  # verbatim
   def str_to_id
     add_function :rb_str_intern
     <<-END
@@ -629,6 +732,17 @@ class Red::MethodCompiler
           rollover = 'A';
         }
         return [rollover, s];
+      }
+    END
+  end
+  
+  def uscore_get
+    add_function :rb_lastline_get, :rb_raise, :rb_obj_classname
+    <<-END
+      function uscore_get() {
+        var line = rb_lastline_get();
+        if (TYPE(line) != T_STRING) { rb_raise(rb_eTypeError, "$_ value need to be String (%s given)", NIL_P(line) ? "nil" : rb_obj_classname(line)); }
+        return line;
       }
     END
   end

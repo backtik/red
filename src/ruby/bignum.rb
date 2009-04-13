@@ -470,6 +470,20 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def rb_big_abs
+    add_function :rb_big_clone
+    <<-END
+      function rb_big_abs(x) {
+        if (!x.sign) {
+          x = rb_big_clone(x);
+          x.sign = 1;
+        }
+        return x;
+      }
+    END
+  end
+  
+  # verbatim
   def rb_big_and
     add_function :rb_to_int, :rb_int2big, :rb_big_clone, :get2comp, :bignew, :bignorm
     <<-END
@@ -773,6 +787,47 @@ class Red::MethodCompiler
     END
   end
   
+  # CHECK: removed warning
+  def rb_big_pow
+    add_function :rb_big2dbl, :bigtrunc, :bigsqr, :rb_big_mul0, :bignorm, :rb_num_coerce
+    <<-END
+      function rb_big_pow(x, y) {
+        if (y == INT2FIX(0)) { return INT2FIX(1); }
+        var d;
+        switch (TYPE(y)) {
+          case T_FLOAT:
+            d = y.value;
+            break;
+          case T_BIGNUM:
+          //rb_warn("in a**b, b may be too big");
+            d = rb_big2dbl(y);
+            break;
+          case T_FIXNUM:
+            var yy = FIX2LONG(y);
+            if (yy > 0) {
+              var z = 0;
+            //var BIGLEN_LIMIT = 1024 * 1024 / SIZEOF_BDIGITS;
+            //if ((x.len > BIGLEN_LIMIT) || (x.len > BIGLEN_LIMIT / yy)) {
+            //  rb_warn("in a**b, b may be too big");
+            //  d = yy;
+            //  break;
+            //}
+              for (var mask = FIXNUM_MAX + 1; mask; mask >>= 1) {
+                if (z) { z = bigtrunc(bigsqr(z)); }
+                if (yy & mask) { z = (z) ? bigtrunc(rb_big_mul0(z, x)) : x; }
+              }
+              return bignorm(z);
+            }
+            d = yy;
+            break;
+          default:
+            return rb_num_coerce_bin(x, y);
+        }
+        return rb_float_new(Math.pow(rb_big2dbl(x), d));
+      }
+    END
+  end
+  
   # verbatim
   def rb_big_or
     add_function :rb_to_int, :rb_int2big, :rb_big_clone, :get2comp, :bignew, :bignorm
@@ -842,6 +897,35 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def rb_big_plus
+    add_function :rb_int2big, :bignorm, :bigadd, :rb_float_new, :rb_num_coerce_bin
+    <<-END
+      function rb_big_plus(x, y) {
+        switch (TYPE(y)) {
+          case T_FIXNUM:
+            y = rb_int2big(FIX2LONG(y));
+            /* fall through */
+          case T_BIGNUM:
+            return bignorm(bigadd(x, y, 1));
+          case T_FLOAT:
+            return rb_float_new(rb_big2dbl(x) + y.value);
+          default:
+            return rb_num_coerce_bin(x, y);
+        }
+      }
+    END
+  end
+  
+  # CHECK: replaced SIZEOF_BDIGITS with 2
+  def rb_big_size
+    <<-END
+      function rb_big_size(big) {
+        return LONG2FIX(big.len * 2);
+      }
+    END
+  end
+  
+  # verbatim
   def rb_big_to_f
     add_function :rb_float_new, :rb_big2dbl
     <<-END
@@ -875,6 +959,56 @@ class Red::MethodCompiler
       function rb_big_uminus(x) {
         var z = rb_big_clone(x);
         z.sign = x.sign ? 0 : 1;
+        return bignorm(z);
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_big_xor
+    add_function :rb_to_int, :rb_int2big, :rb_big_clone, :get2comp, :bignew, :bignorm
+    <<-END
+      function rb_big_xor(xx, yy) {
+        var l1;
+        var l2;
+        var ds1;
+        var ds2;
+        var sign;
+        var x = xx;
+        var y = rb_to_int(yy);
+        if (FIXNUM_P(y)) { y = rb_int2big(FIX2LONG(y)); }
+        if (!y.sign) {
+          y = rb_big_clone(y);
+          get2comp(y);
+        }
+        if (!x.sign) {
+          x = rb_big_clone(x);
+          get2comp(x);
+        }
+        if (x.len > y.len) {
+          l1 = y.len;
+          l2 = x.len;
+          ds1 = BDIGITS(y);
+          ds2 = BDIGITS(x);
+          sign = y.sign;
+        } else {
+          l1 = x.len;
+          l2 = y.len;
+          ds1 = BDIGITS(x);
+          ds2 = BDIGITS(y);
+          sign = x.sign;
+        }
+        x.sign = x.sign ? 1 : 0;
+        y.sign = y.sign ? 1 : 0;
+        var z = bignew(l2, (x.sign ^ y.sign) ? 0 : 1);
+        var zds = BDIGITS(z);
+        for (var i = 0; i < l1; ++i) {
+          zds[i] = ds1[i] ^ ds2[i];
+        }
+        for (; i < l2; ++i) {
+          zds[i] = sign?ds2[i]:~ds2[i];
+        }
+        if (!z.sign) { get2comp(z); }
         return bignorm(z);
       }
     END

@@ -160,7 +160,7 @@ function r(line, type, a, b, c) {
       return NEW_NOT(a);
     
     case 0xfc: // Num
-      return NEW_NODE(NODE_LIT,INT2FIX(a),0,0);
+      return NEW_NODE(NODE_LIT, INT2FIX(a), 0, 0);
     
     case NODE_OR:
       return NEW_NODE(NODE_OR, a, b, 0);
@@ -170,6 +170,9 @@ function r(line, type, a, b, c) {
     
     case NODE_REDO:
       return NEW_REDO();
+    
+    case 0xfe: // Regexp
+      return NEW_NODE(NODE_LIT, rb_reg_new(a, a.length, b & ~RE_OPTION_ONCE), 0, 0);
     
     case NODE_RESBODY:
       return NEW_RESBODY(a, b, c);

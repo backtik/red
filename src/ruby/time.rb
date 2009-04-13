@@ -492,12 +492,12 @@ class Red::MethodCompiler
     END
   end
   
-  # expanded "Data_Make_Struct"
+  # expanded 'Data_Make_Struct'
   def time_s_alloc
     <<-END
       function time_s_alloc(klass) {
         var tobj = {'tm':{},'tv':{},'gmt':0};
-        var obj = rb_data_object_alloc(klass, tobj);
+        var obj = rb_data_object_alloc(klass, tobj, 0);
         tobj.tm_got = 0;
         tobj.tv.tv_sec = 0;
         tobj.tv.tv_usec = 0;

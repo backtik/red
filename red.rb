@@ -368,9 +368,11 @@ module Red
         :FRAME_DMETH        => 1,
         :HASH_DELETED       => 1 << (11 + 1),
         :HASH_PROC_DEFAULT  => 1 << (11 + 2),
+        :MATCH_BUSY         => 1 << (11 + 2),
         :MIN_SIZE           => 8,
         :NODE_LSHIFT        => 11 + 8,
         :NODE_LMASK         => (1 << (4 * 8 - 19)) - 1,
+        :RE_OPTION_ONCE     => 0x80,
         :ruby_cbase         => "ruby_cref.u1",
         :BEGIN_CALLARGS     => "(function CALLARGS_MACRO(){var tmp_block=ruby_block,tmp_iter=ruby_iter.iter;switch(tmp_iter){case 1:if(ruby_block){ruby_block=ruby_block.outer;}case 3:tmp_iter=0;}(function ITER_MACRO(){var _iter={prev:ruby_iter,iter:tmp_iter};ruby_iter=_iter",
         :END_CALLARGS       => "ruby_block=tmp_block;ruby_iter=_iter.prev;})();})()"
@@ -439,7 +441,7 @@ module Red
         :NEW_ENSURE      => "rb_node_newnode(NODE_ENSURE,%s,0,%s)",
         :NEW_EVSTR       => "rb_node_newnode(NODE_EVSTR,0,(%s),0)",
         :NEW_FALSE       => "rb_node_newnode(NODE_FALSE,0,0,0)",
-        :NEW_FBODY       => "rb_node_newnode(NODE_FBODY,%s,%s,o)",
+        :NEW_FBODY       => "rb_node_newnode(NODE_FBODY,%s,%s,%s)",
         :NEW_FCALL       => "rb_node_newnode(NODE_FCALL,0,%s,%s)",
         :NEW_FOR         => "rb_node_newnode(NODE_FOR,%1$s,%3$s,%2$s)",
         :NEW_GASGN       => "rb_node_newnode(NODE_GASGN,%1$s,%2$s,rb_global_entry(%1$s))",
@@ -531,6 +533,7 @@ module Red
         :BIGZEROP        => "((%1$s).len == 0 || (((%1$s).digits[0] === 0) && (((%1$s).len == 1) || bigzero_p(%1$s))))",
         :bignew          => "bignew_1(rb_cBignum,%s,%s)",
         :BUILTIN_TYPE    => "((%s).basic.flags&T_MASK)",
+        :CLONESETUP      => "do{(%1$s).basic={klass:rb_singleton_class_clone(%2$s),flags:(%2$s).basic.flags};rb_singleton_class_attached((%1$s).basic.klass,%1$s);if(FL_TEST(%2$s,FL_EXIVAR)){rb_copy_generic_ivar(%1$s,%2$s);}}while(0)",
         :Data_Get_Struct => "do{rb_check_type(%1$s,T_DATA);var %2$s=%1$s.data;}while(0)",
         :do_hash         => "((%2$s).type.hash(%1$s))",
         :EXPR1           => "((((%s)>>3)^(%s))&CACHE_MASK)",
@@ -998,7 +1001,7 @@ module Red
       when 'Float'
         self << "r(%s,%s,%.15f)" % [$line, 0xfd, value]
       when 'Regexp'
-        self << "r(%s,%s,%p)" % [$line, 0xfe, value]
+        self << "r(%s,%s,%s,%d)" % [$line, 0xfe, value.source.inspect, value.options]
       when 'Symbol'
         self << "r(%s,%s,'%s')" % [$line, 0xff, value]
       end

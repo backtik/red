@@ -166,6 +166,20 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def index_i
+    add_function :rb_equal
+    <<-END
+      function index_i(key, value, args) {
+        if (rb_equal(value, args[0])) {
+          args[1] = key;
+          return ST_STOP;
+        }
+        return ST_CONTINUE;
+      }
+    END
+  end
+  
   # removed str_buf handling
   def inspect_hash
     add_function :rb_hash_foreach, :hash_inspect_i
@@ -377,6 +391,16 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def rb_hash_empty_p
+    <<-END
+      function rb_hash_empty_p(hash) {
+        if (hash.tbl.num_entries === 0) { return Qtrue; }
+        return Qfalse;
+      }
+    END
+  end
+  
+  # verbatim
   def rb_hash_eql
     add_function :hash_equal
     <<-END
@@ -439,6 +463,18 @@ class Red::MethodCompiler
     <<-END
       function rb_hash_hash(hash) {
         return rb_exec_recursive(recursive_hash, hash, 0);
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_hash_index
+    add_function :rb_hash_foreach, :index_i
+    <<-END
+      function rb_hash_index(hash, value) {
+        var args = [value, Qnil];
+        rb_hash_foreach(hash, index_i, args);
+        return args[1];
       }
     END
   end
@@ -593,6 +629,15 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def rb_hash_size
+    <<-END
+      function rb_hash_size(hash) {
+        return INT2FIX(hash.tbl.num_entries);
+      }
+    END
+  end
+  
   # CHECK
   def rb_hash_to_a
     add_function :rb_hash_foreach, :to_a_i
@@ -622,6 +667,32 @@ class Red::MethodCompiler
       function rb_hash_to_s(hash) {
         if (rb_inspecting_p(hash)) { return rb_str_new("{...}"); }
         return rb_protect_inspect(to_s_hash, hash, 0);
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_hash_values
+    add_function :rb_ary_new, :rb_hash_foreach, :values_i
+    <<-END
+      function rb_hash_values(hash) {
+        var ary = rb_ary_new();
+        rb_hash_foreach(hash, values_i, ary);
+        return ary;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_hash_values_at
+    add_function :rb_ary_new, :rb_ary_push, :rb_hash_aref
+    <<-END
+      function rb_hash_values_at(argc, argv, hash) {
+        var result = rb_ary_new();
+        for (var i = 0; i < argc; ++i) {
+          rb_ary_push(result, rb_hash_aref(hash, argv[i]));
+        }
+        return result;
       }
     END
   end
@@ -678,6 +749,18 @@ class Red::MethodCompiler
     <<-END
       function to_s_hash(hash) {
         return rb_ary_to_s(rb_hash_to_a(hash));
+      }
+    END
+  end
+  
+  # verbatim
+  def values_i
+    add_function :rb_ary_push
+    <<-END
+      function values_i(key, value, ary) {
+        if (key == Qundef) { return ST_CONTINUE; }
+        rb_ary_push(ary, value);
+        return ST_CONTINUE;
       }
     END
   end

@@ -20,6 +20,16 @@ class Red::MethodCompiler
     END
   end
   
+  # replaced 'fabs' with 'Math.abs'
+  def flo_abs
+    add_function :rb_float_new
+    <<-END
+      function flo_abs(flt) {
+        return rb_float_new(Math.abs(flt.value));
+      }
+    END
+  end
+  
   # verbatim
   def flo_cmp
     add_function :rb_big2dbl, :rb_num_coerce_cmp, :rb_dbl_cmp

@@ -118,6 +118,52 @@ class Red::MethodCompiler
     END
   end
   
+  # CHECK: needs reworking to allow bound methods
+  def rb_mod_define_method
+    add_function :rb_to_id, :proc_lambda, :rb_obj_is_method, :rb_obj_is_proc, :rb_raise,
+                 :proc_clone, :rb_add_method, :rb_obj_classname, :method_unbind, :bm_mark, :blk_mark
+    <<-END
+      function rb_mod_define_method(argc, argv, mod) {
+        var id;
+        var body;
+        var node;
+        if (argc == 1) {
+          id = rb_to_id(argv[0]);
+          body = proc_lambda();
+        } else if (argc == 2) {
+          id = rb_to_id(argv[0]);
+          body = argv[1];
+          if (!rb_obj_is_method(body) && !rb_obj_is_proc(body)) { rb_raise(rb_eTypeError, "wrong argument type %s (expected Proc/Method)", rb_obj_classname(body)); }
+        } else {
+          rb_raise(rb_eArgError, "wrong number of arguments (%d for 1)", argc);
+        }
+        if (body.dmark == bm_mark) {
+          node = NEW_DMETHOD(method_unbind(body));
+        } else if (body.dmark == blk_mark) {
+          body = proc_clone(body);
+          Data_Get_Struct(body, block);
+          block.frame.last_func = id;
+          block.frame.orig_func = id;
+          block.frame.last_class = mod;
+          node = NEW_BMETHOD(body);
+        } else {
+          /* type error */
+          rb_raise(rb_eTypeError, "wrong argument type (expected Proc/Method)");
+        }
+        var noex = NOEX_PUBLIC;
+        if (ruby_cbase == mod) {
+          if (SCOPE_TEST(SCOPE_PRIVATE)) {
+            noex = NOEX_PRIVATE;
+          } else if (SCOPE_TEST(SCOPE_PROTECTED)) {
+            noex = NOEX_PROTECTED;
+          }
+        }
+        rb_add_method(mod, id, node, noex);
+        return body;
+      }
+    END
+  end
+  
   # verbatim
   def rb_mod_eqq
     add_function :rb_obj_is_kind_of

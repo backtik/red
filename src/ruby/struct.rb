@@ -89,6 +89,37 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def rb_struct_aref
+    add_function :rb_to_id, :rb_struct_aref_id, :rb_to_id, :rb_raise
+    <<-END
+      function rb_struct_aref(s, idx) {
+        if ((TYPE(idx) == T_STRING) || (TYPE(idx) == T_SYMBOL)) { return rb_struct_aref_id(s, rb_to_id(idx)); }
+        var i = NUM2LONG(idx);
+        if (i < 0) { i = s.ptr.length + i; }
+        if (i < 0) { rb_raise(rb_eIndexError, "offset %d too small for struct(size:%d)", i, s.ptr.length); }
+        if (s.ptr.length <= i) { rb_raise(rb_eIndexError, "offset %d too large for struct(size:%d)", i, s.ptr.length); }
+        return s.ptr[i];
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_struct_aref_id
+    add_function :rb_struct_members, :rb_name_error, :rb_id2name
+    <<-END
+      function rb_struct_aref_id(s, id) {
+        var members = rb_struct_members(s);
+        var len = members.ptr.length;
+        for (var i = 0; i < len; ++i) {
+          if (SYM2ID(members.ptr[i]) == id) { return s.ptr[i]; }
+        }
+        rb_name_error(id, "no member '%s' in struct", rb_id2name(id));
+        return Qnil; /* not reached */
+      }
+    END
+  end
+  
+  # verbatim
   def rb_struct_aset
     add_function :rb_struct_aset_id, :rb_to_id, :rb_raise, :rb_struct_modify, :rb_num2long
     <<-END
@@ -208,9 +239,9 @@ class Red::MethodCompiler
       function rb_struct_hash(s) {
         var n;
         var h = rb_hash(rb_obj_class(s));
-        for (var i = 0, l = s.len; i < l; ++i) {
+        for (var i = 0, p = s.ptr, l = p.length; i < l; ++i) {
           h = (h << 1) | ((h < 0) ? 1 : 0);
-          n = rb_hash(s.ptr[i]);
+          n = rb_hash(p[i]);
           h ^= NUM2LONG(n);
         }
         return LONG2FIX(h);
@@ -466,6 +497,16 @@ class Red::MethodCompiler
         st.ptr = [];
         rb_mem_clear(st.ptr, n);
         return st;
+      }
+    END
+  end
+  
+  # verbatim
+  def struct_entry
+    add_function :rb_struct_aref
+    <<-END
+      function struct_entry(s, n) {
+        return rb_struct_aref(s, LONG2NUM(n));
       }
     END
   end

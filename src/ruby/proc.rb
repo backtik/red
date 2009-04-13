@@ -41,6 +41,23 @@ class Red::MethodCompiler
     END
   end
   
+  # expanded 'Data_Make_Struct'
+  def proc_clone
+    add_function :rb_obj_class, :blk_dup
+    <<-END
+      function proc_clone(self) {
+        Data_Get_Struct(self, orig);
+        // bind = Data_Make_Struct(rb_obj_class(self),struct BLOCK,blk_mark,blk_free,data);
+        NEWOBJ(bind);
+        OBJSETUP(bind, rb_obj_class(self), T_DATA);
+        bind.data = {};
+        CLONESETUP(bind, self);
+        blk_dup(data, orig);
+        return bind;
+      }
+    END
+  end
+  
   # EMPTY
   def proc_eq
     <<-END

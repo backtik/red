@@ -58,6 +58,42 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def ary_shared_array
+    add_function :ary_alloc, :ary_make_shared
+    <<-END
+      function ary_shared_array(klass, ary) {
+        var val = ary_alloc(klass);
+        ary_make_shared(ary);
+        val.ptr = ary.ptr;
+        val.aux.shared = ary.aux.shared;
+        FL_SET(val, ELTS_SHARED);
+        return val;
+      }
+    END
+  end
+  
+  # CHECK
+  def ary_shared_first
+    add_function :rb_scan_args, :rb_raise, :ary_shared_array
+    <<-END
+      function ary_shared_first(argc, argv, ary, last) {
+        var offset = 0;
+        var nv = rb_scan_args(argc, argv, "1")[1];
+        var n = NUM2LONG(nv);
+        if (n > ary.ptr.length) {
+          n = ary.ptr.length;
+        } else if (n < 0) {
+          rb_raise(rb_eArgError, "negative array size");
+        }
+        if (last) { offset = ary.ptr.length - n; }
+        var result = ary_shared_array(rb_cArray, ary);
+        result.ptr = result.ptr.slice(offset); // was 'RARRAY(result)->ptr += offset'
+        return result;
+      }
+    END
+  end
+  
   # simplified from thread-based original
   def get_inspect_tbl
     add_function :rb_ary_new
@@ -266,6 +302,72 @@ class Red::MethodCompiler
     END
   end
   
+  def rb_ary_collect
+    add_function :rb_block_given_p, :rb_ary_new4, :rb_ary_new, :rb_ary_push
+    <<-END
+      function rb_ary_collect(ary) {
+        if (!rb_block_given_p()) { return rb_ary_new4(ary.ptr.length, ary.ptr); }
+        var collect = rb_ary_new();
+        for (var i = 0, p = ary.ptr, l = p.length; i < l; ++i) {
+          rb_ary_push(collect, rb_yield(p[i]));
+        }
+        return collect;
+      }
+    END
+  end
+  
+  # removed 'len' and 'capa' handling
+  def rb_ary_delete
+    add_function :rb_ary_store, :rb_equal, :rb_block_given_p, :rb_yield, :rb_ary_modify
+    <<-END
+      function rb_ary_delete(ary, item) {
+        for (var i1 = 0, i2 = 0, p = ary.ptr, l = ary.ptr.length; i1 < l; ++i1) {
+          var e = p[i1];
+          if (rb_equal(e, item)) { continue; }
+          if (i1 != i2) { rb_ary_store(ary, i2, e); }
+          i2++;
+        }
+        if (ary.ptr.length == i2) {
+          if (rb_block_given_p()) { return rb_yield(item); }
+          return Qnil;
+        }
+        rb_ary_modify(ary);
+        return item;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_ary_delete_at
+    add_function :rb_ary_modify
+    <<-END
+      function rb_ary_delete_at(ary, pos) {
+        var len = ary.ptr.length;
+        if (pos >= len) { return Qnil; }
+        if (pos < 0) {
+          pos += len;
+          if (pos < 0) { return Qnil; }
+        }
+        rb_ary_modify(ary);
+        var del = ary.ptr[pos];
+        for (i = pos + 1, p = ary.ptr; i < len; i++) {
+          p[pos++] = p[i];
+        }
+        return del;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_ary_delete_at_m
+    add_function :rb_ary_delete_at
+    <<-END
+      function rb_ary_delete_at_m(ary, pos) {
+        return rb_ary_delete_at(ary, NUM2LONG(pos));
+      }
+    END
+  end
+  
   # verbatim
   def rb_ary_diff
     add_function :ary_make_hash, :to_ary, :rb_ary_new, :st_lookup, :rb_ary_push, :rb_ary_elt
@@ -318,6 +420,15 @@ class Red::MethodCompiler
         if (p.length === 0) { return Qnil; }
         if ((offset < 0) || (p.length <= offset)) { return Qnil; }
         return p[offset];
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_ary_empty_p
+    <<-END
+      function rb_ary_empty_p(ary) {
+        return (ary.ptr.length === 0) ? Qtrue : Qfalse;
       }
     END
   end
@@ -386,6 +497,27 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def rb_ary_index
+    add_function :rb_yield, :rb_equal
+    <<-END
+      function rb_ary_index(argc, argv, ary) {
+        if (argc  == 0) {
+          RETURN_ENUMERATOR(ary, 0, 0);
+          for (var i = 0, p = ary.ptr, l = p.length; i < l; ++i) {
+            if (RTEST(rb_yield(p[i]))) { return LONG2NUM(i); }
+          }
+          return Qnil;
+        }
+        var val = rb_scan_args(argc, argv, "01")[1];
+        for (var i = 0, p = ary.ptr, l = p.length; i < l; ++i) {
+          if (rb_equal(p[i], val)) { return LONG2NUM(i); }
+        }
+        return Qnil;
+      }
+    END
+  end
+  
   # removed capacity handler and multiple warnings
   def rb_ary_initialize
     add_function :rb_scan_args, :rb_ary_modify, :rb_check_array_type,
@@ -419,6 +551,22 @@ class Red::MethodCompiler
           memfill(ary.ptr, len, val);
           // removed 'RARRAY(ary)->len = len'
         }
+        return ary;
+      }
+    END
+  end
+  
+  # replaced 'argv + 1' with 'argv.slice(1)'
+  def rb_ary_insert
+    add_function :rb_raise, :rb_ary_splice, :rb_ary_new4
+    <<-END
+      function rb_ary_insert(argc, argv, ary) {
+        if (argc == 1) return ary;
+        if (argc < 1) { rb_raise(rb_eArgError, "wrong number of arguments (at least 1)"); }
+        var pos = NUM2LONG(argv[0]);
+        if (pos == -1) { pos = ary.ptr.length; }
+        if (pos < 0) { pos++; }
+        rb_ary_splice(ary, pos, 0, rb_ary_new4(argc - 1, argv.slice(1))); // was 'argv + 1'
         return ary;
       }
     END
@@ -865,6 +1013,16 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def rb_ary_values_at
+    add_function :rb_values_at, :rb_ary_entry
+    <<-END
+      function rb_ary_values_at(argc, argv, ary) {
+        return rb_values_at(ary, ary.ptr.length, argc, argv, rb_ary_entry);
+      }
+    END
+  end
+  
   # changed rb_ary_new2 to rb_ary_new
   def rb_assoc_new
     add_function :rb_ary_new
@@ -905,7 +1063,7 @@ class Red::MethodCompiler
   def rb_mem_clear
     <<-END
       function rb_mem_clear(mem, size, offset) {
-        for (var i = 0; i < size; ++i) {
+        for (var i = offset || 0; i < size; ++i) {
           mem[i] = Qnil;
         }
       }
@@ -924,6 +1082,37 @@ class Red::MethodCompiler
         rb_ary_push(inspect_tbl, id);
         var iarg = { func: func, arg1: obj, arg2: arg };
         return rb_ensure(inspect_call, iarg, inspect_ensure, obj); // &iarg
+      }
+    END
+  end
+  
+  # modified 'rb_range_beg_len' to return array [result, begp, lenp] instead of using pointers
+  def rb_values_at
+    add_function :rb_ary_push, :rb_ary_new, :rb_range_beg_len
+    <<-END
+      function rb_values_at(obj, olen, argc, argv, func) {
+        var result = rb_ary_new();
+        for (var i = 0; i < argc; ++i) {
+          if (FIXNUM_P(argv[i])) {
+            rb_ary_push(result, func(obj, FIX2LONG(argv[i])));
+            continue;
+          }
+          /* check if idx is Range */
+          var tmp = rb_range_beg_len(argv[i], olen, 0);
+          var beg = tmp[1];
+          var len = tmp[2];
+          switch (tmp[0]) {
+            case Qfalse:
+              break;
+            case Qnil:
+              continue;
+            default:
+              for (var j = 0; j < len; ++j) { rb_ary_push(result, func(obj, j + beg)); }
+              continue;
+          }
+          rb_ary_push(result, func(obj, NUM2LONG(argv[i])));
+        }
+        return result;
       }
     END
   end

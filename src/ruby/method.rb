@@ -1,4 +1,11 @@
 class Red::MethodCompiler
+  # empty placeholder to identify Data structs as methods
+  def bm_mark
+    <<-END
+      function bm_mark() {};
+    END
+  end
+  
   # verbatim
   def bmcall
     add_function :svalue_to_avalue, :method_call
@@ -65,8 +72,28 @@ class Red::MethodCompiler
   end
   
   # expanded Data_Make_Struct
+  def method_unbind
+    add_function :rb_data_object_alloc
+    <<-END
+      function method_unbind(obj) {
+        Data_Get_Struct(obj, orig);
+        var data = {};
+        var method = rb_data_object_alloc(rb_cUnboundMethod, data, bm_mark); // was 'Data_Make_Struct(rb_cUnboundMethod, struct METHOD, bm_mark, free, data)'
+        data.klass = orig.klass;
+        data.recv = Qundef;
+        data.id = orig.id;
+        data.body = orig.body;
+        data.rklass = orig.rklass;
+        data.oid = orig.oid;
+        OBJ_INFECT(method, obj);
+        return method;
+      }
+    END
+  end
+  
+  # expanded Data_Make_Struct
   def mnew
-    add_function :rb_get_method_body, :print_undef
+    add_function :rb_get_method_body, :print_undef, :bm_mark
     <<-END
       function mnew(klass, obj, id, mklass) {
         var method;
@@ -92,17 +119,16 @@ class Red::MethodCompiler
           rklass = rklass.superclass;
         }
         if (TYPE(klass) == T_ICLASS) { klass = klass.klass; }
-        NEWOBJ(method); // was Data_Make_Struct
-        OBJSETUP(method, mklass, T_DATA);
-        method.data = {
-          klass: klass,
-          recv: obj,
-          id: id,
-          body: body,
-          rklass: rklass,
-          oid: oid,
-          safe_level: NOEX_WITH_SAFE(noex)
+        data = {
+          'klass': klass,
+          'recv': obj,
+          'id': id,
+          'body': body,
+          'rklass': rklass,
+          'oid': oid,
+          'safe_level': NOEX_WITH_SAFE(noex)
         };
+        method = rb_data_object_alloc(mklass, data, bm_mark)
         OBJ_INFECT(method, klass);
         return method;
       }
@@ -120,6 +146,15 @@ class Red::MethodCompiler
         POP_FRAME();
         POP_ITER();
         return proc;
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_obj_is_method
+    <<-END
+      function rb_obj_is_method(m) {
+        return ((TYPE(m) == T_DATA) && (m.dmark == bm_mark)) ? Qtrue : Qfalse;
       }
     END
   end

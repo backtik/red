@@ -37,6 +37,18 @@ class Red::MethodCompiler
     END
   end
   
+  # CHECK: changed rb_funcall argument '<' to rb_intern('<')
+  def num_abs
+    add_function :rb_funcall, :rb_intern
+    add_method :<, :-@
+    <<-END
+      function num_abs(num) {
+        if (RTEST(rb_funcall(num, rb_intern('<'), 1, INT2FIX(0)))) { return rb_funcall(num, rb_intern('-@'), 0); }
+        return num;
+      }
+    END
+  end
+  
   # verbatim
   def num_cmp
     <<-END

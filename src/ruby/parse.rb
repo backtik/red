@@ -170,6 +170,41 @@ class Red::MethodCompiler
     END
   end
   
+  # CHECK
+  def special_local_set
+    add_function :top_local_init
+    <<-END
+      function special_local_set(c, val) {
+        top_local_init();
+        ruby_scope.local_vars[c] = val;
+      }
+    END
+  end
+  
+  # CHECK
+  def rb_backref_get
+    add_function :rb_svar
+    <<-END
+      function rb_backref_get() {
+        return ruby_scope.local_vars['~'] || Qnil;
+      }
+    END
+  end
+  
+  # replaced 'rb_svar' with pointer to 'ruby_scope.local_vars'
+  def rb_backref_set
+    add_function :special_local_set
+    <<-END
+      function rb_backref_set(val) {
+        if (rb_svar(1)) {
+          ruby_scope.local_vars[1] = val;
+        } else {
+          special_local_set('~', val);
+        }
+      }
+    END
+  end
+  
   # verbatim
   def rb_id_attrset
     <<-END
@@ -312,6 +347,18 @@ class Red::MethodCompiler
     END
   end
   
+  # verbatim
+  def rb_lastline_get
+    add_function :rb_svar
+    <<-END
+      function rb_lastline_get() {
+        var variable = rb_svar(0);
+        if (variable) { return variable; }
+        return Qnil;
+      }
+    END
+  end
+  
   # changed st_lookup
   def rb_sym_interned_p
     <<-END
@@ -336,6 +383,45 @@ class Red::MethodCompiler
           lvtbl.tbl = 0;
         }
         lvtbl.dlev = (ruby_dyna_vars) ? 1 : 0;
+      }
+    END
+  end
+  
+  # CHECK; possibly unnecessary - seems to deal with reallocating 'local_tbl' in order to make room for special locals in the memory location directly preceding
+  def top_local_setup
+    add_function :rb_mem_clear
+    <<-END
+      function top_local_setup() {
+        var len = lvtbl.cnt;
+        if (len > 0) {
+          var i = ruby_scope.local_tbl ? ruby_scope.local_tbl[0] : 0;
+          if (i < len) {
+            if ((i === 0) || ((ruby_scope.flags & SCOPE_MALLOC) === 0)) {
+              var vars = [];
+              if (ruby_scope.local_vars) {
+                vars[-1] = ruby_scope.local_vars[-1];
+                MEMCPY(vars, ruby_scope.local_vars, i);
+                rb_mem_clear(vars, len - i, i);
+              } else {
+                vars[-1] = 0;
+                rb_mem_clear(vars, len);
+              }
+              ruby_scope.local_vars = vars;
+              ruby_scope.flags |= SCOPE_MALLOC;
+            } else {
+            //VALUE *vars = ruby_scope->local_vars-1;
+              var vars = ruby_scope.local_vars[-1];
+            //REALLOC_N(vars, VALUE, len+1);
+              rb_mem_clear(ruby_scope.local_vars, len - i, i);
+            }
+            if (ruby_scope.local_tbl && (ruby_scope.local_vars[-1] === 0)) {
+              if (!(ruby_scope.flags & SCOPE_CLONE)) { delete(ruby_scope.local_tbl); }
+            }
+            ruby_scope.local_vars[-1] = 0; /* no reference needed */
+            ruby_scope.local_tbl = local_tbl();
+          }
+        }
+        local_pop();
       }
     END
   end

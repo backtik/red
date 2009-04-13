@@ -500,6 +500,30 @@ class Red::MethodCompiler
   end
   
   # verbatim
+  def rb_obj_ivar_get
+    add_function :rb_is_instance_id, :rb_id2name, :rb_ivar_get
+    <<-END
+      function rb_obj_ivar_get(obj, iv) {
+        var id = rb_to_id(iv);
+        if (!rb_is_instance_id(id)) { rb_name_error(id, "'%s' is not allowed as an instance variable name", rb_id2name(id)); }
+        return rb_ivar_get(obj, id);
+      }
+    END
+  end
+  
+  # verbatim
+  def rb_obj_ivar_set
+    add_function :rb_to_id, :rb_is_instance_id, :rb_name_error, :rb_id2name, :rb_ivar_set
+    <<-END
+      function rb_obj_ivar_set(obj, iv, val) {
+        var id = rb_to_id(iv);
+        if (!rb_is_instance_id(id)) { rb_name_error(id, "'%s' is not allowed as an instance variable name", rb_id2name(id)); }
+        return rb_ivar_set(obj, id, val);
+      }
+    END
+  end
+  
+  # verbatim
   def rb_obj_method
     add_function :mnew, :rb_to_id
     <<-END
