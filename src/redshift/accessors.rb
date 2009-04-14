@@ -97,7 +97,7 @@ class Red::MethodCompiler
         var element = elem.ptr;
         var attribute = rb_id2name(rb_to_id(name));
         var bool = rb_boolean_property(attribute);
-        var key = { 'class':'className', 'for':'htmlFor' }[attribute] || bool;
+        var key = { 'class':'className', 'for':'htmlFor', 'value':'value' }[attribute] || bool;
         var value = (key) ? (element[key] || 0) : (element.getAttribute(attribute, 2) || 0);
         return (value) ? (bool ? Qtrue : rb_str_new(value)) : (bool ? Qfalse : Qnil);
       }
@@ -109,7 +109,8 @@ class Red::MethodCompiler
     add_function :rb_camelize_name, :rb_str_new
     <<-END
       function elem_get_style(elem, name) {
-        return typeof(retval = elem.ptr.style[rb_camelize_name(name)]) == 'undefined' ? Qnil : rb_str_new(retval);
+        var retval;
+        return (typeof(retval = elem.ptr.style[rb_camelize_name(name)]) == 'undefined') ? Qnil : rb_str_new(retval);
       }
     END
   end
@@ -504,7 +505,7 @@ class Red::MethodCompiler
       function rb_set_element_property(element, attribute, val) {
         var string_value = rb_funcall(val, rb_intern('to_s'), 0).ptr;
         var bool = rb_boolean_property(attribute);
-        var key = { 'class':'className', 'for':'htmlFor' }[attribute] || bool;
+        var key = { 'class':'className', 'for':'htmlFor', 'value':'value', 'text':(ruby_engine_name == 'trident') ? 'innerText' : 'textContent' }[attribute] || bool;
         if (key) {
           element[key] = (bool) ? RTEST(val) : string_value;
         } else {

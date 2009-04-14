@@ -665,15 +665,21 @@ module Red
       rest = 0
       opts = 0
       argc = 0
+      puts args.inspect
       while (arg = args[argc]) && arg.is_a?(Symbol)
         break if arg.to_s[0,1] == "*" && rest = [:lasgn, arg.to_s[1..-1], 0].red!
         argc += 1
       end
       if assignment_block_sexp = args.assoc(:block)
         argc -= (assignment_block_sexp.size - 1)
-        opts = assignment_block_sexp.red!
+      else
+        assignment_block_sexp = [:block]
       end
-      self << "r(%s,%s,%s,%s,%s)" % [$line, TYPES[:NODE_ARGS], argc, opts, rest]
+      args[0...argc].reverse_each do |arg|
+        assignment_block_sexp.insert(1, [:lasgn, arg, 0])
+      end
+      lasgns = assignment_block_sexp.red!
+      self << "r(%s,%s,%s,%s,%s)" % [$line, TYPES[:NODE_ARGS], argc, lasgns, rest]
     end
   end
   
@@ -1114,6 +1120,7 @@ module Red
   
   class Scope < String
     def initialize(scope_sexp, options = nil)
+      puts scope_sexp.inspect
       options = options || scope_sexp
       scope = scope_sexp == options ? "0" : scope_sexp.red!
       self << "r(%s,%s,%s)" % [$line, TYPES[:NODE_SCOPE], scope]

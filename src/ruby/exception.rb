@@ -108,7 +108,7 @@ class Red::MethodCompiler
   
   # unpacked Data_Wrap_Struct
   def name_err_mesg_new
-    add_function :rb_data_object_alloc
+    add_function :rb_data_object_alloc, :name_err_mesg_mark
     <<-END
       function name_err_mesg_new(obj, mesg, recv, method) {
         var ptr = [mesg, recv, method];

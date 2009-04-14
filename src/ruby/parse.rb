@@ -87,36 +87,45 @@ class Red::MethodCompiler
     END
   end
   
-  # changed allocation calls
+  # removed handling of $~ and $_ 'global' variables
   def local_append
     <<-END
       function local_append(id) {
-        if (!lvtbl.tbl) { // was 'if (lvtbl->tbl === 0)'
-          lvtbl.tbl = []; // was 'lvtbl->tbl = ALLOC_N(ID, 4)'
-          lvtbl.tbl[0] = 0;
-          lvtbl.tbl[1] = '_';
-          lvtbl.tbl[2] = '~';
-          lvtbl.cnt = 2;
-          if (id == '_') { return 0; }
-          if (id == '~') { return 1; }
+      //if (!lvtbl.tbl) { // was 'if (lvtbl->tbl === 0)'
+      //  lvtbl.tbl = []; // was 'lvtbl->tbl = ALLOC_N(ID, 4)'
+      //  lvtbl.tbl[0] = 0;
+      //  lvtbl.tbl[1] = '_';
+      //  lvtbl.tbl[2] = '~';
+      //  lvtbl.cnt = 2;
+      //  if (id == '_') { return 0; }
+      //  if (id == '~') { return 1; }
+      //}
+      //// removed REALLOC_N else clause
+      //lvtbl.tbl[lvtbl.cnt + 1] = id;
+      //return lvtbl.cnt++;
+        if (!lvtbl.tbl) {
+          lvtbl.tbl = [];
+          lvtbl.cnt = 0;
         }
-        // removed REALLOC_N else clause
-        lvtbl.tbl[lvtbl.cnt + 1] = id;
+        lvtbl.tbl[lvtbl.cnt] = id;
         return lvtbl.cnt++;
       }
     END
   end
   
-  # verbatim
+  # removed offset of -1 from looping logic; 'cnt' now reflects actual index
+  # CHECK: passing 0 as 'id' no longer returns 'lvtbl.cnt'; may need to replace this functionality
   def local_cnt
     add_function :local_append
     <<-END
       function local_cnt(id) {
-        if (id === 0) { return lvtbl.cnt; }
-        for (var cnt = 1, max = lvtbl.cnt + 1; cnt < max; cnt++) {
-          if (lvtbl.tbl[cnt] == id) { return cnt - 1; }
-        }
-        return local_append(id);
+      //if (id === 0) { return lvtbl.cnt; }
+      //for (var cnt = 0, max = lvtbl.cnt; cnt < max; cnt++) {
+      //  if (lvtbl.tbl[cnt] == id) { return cnt; }
+      //}
+        var index = (lvtbl.tbl || []).indexOf(id);
+        if (index < 0) { return local_append(id); }
+        return index;
       }
     END
   end

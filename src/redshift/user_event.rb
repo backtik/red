@@ -98,10 +98,10 @@ class Red::MethodCompiler
         Check_Type(hash, T_HASH);
         var tbl = hash.tbl;
         ruby_custom_events[rb_to_id(sym)] = {
-          base: rb_to_id(tbl[sym_base]),
-          condition: tbl[sym_condition] || 0,
-          listen: tbl[sym_onlisten] || 0,
-          unlisten: tbl[sym_onunlisten] || 0
+          base: rb_to_id(st_lookup(tbl, sym_base)[1]),
+          condition: st_lookup(tbl, sym_condition)[1] || 0,
+          listen: st_lookup(tbl, sym_onlisten)[1] || 0,
+          unlisten: st_lookup(tbl, sym_onunlisten)[1] || 0
         };
         return Qtrue;
       }
