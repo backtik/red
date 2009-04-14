@@ -43,11 +43,6 @@ require 'src/redshift/request'
 require 'src/redshift/response'
 require 'src/redshift/styles'
 require 'src/redshift/user_event'
-require 'src/ribbons/controller'
-require 'src/ribbons/kvc'
-require 'src/ribbons/view'
-
-
 
 class Red::MethodCompiler
   attr_reader :functions
@@ -475,13 +470,6 @@ class Red::MethodCompiler
       END
     end
     
-    def add_binding
-      $mc.add_function :view_add_binding_to_controller
-      <<-END
-        rb_define_method(rb_cView, "add_binding", view_add_binding_to_controller, 3);
-      END
-    end
-    
     def air?
       $mc.add_function :rb_define_global_function, :rb_f_air_p
       <<-END
@@ -676,9 +664,7 @@ class Red::MethodCompiler
     
     def bind
       # $mc.add_function :umethod_bind, 
-      $mc.add_function :view_add_binding_to_controller
       <<-END
-        rb_define_method(rb_cView, "bind", view_add_binding_to_controller, 3);
         //rb_define_method(rb_cUnboundMethod, "bind", umethod_bind, 1);
       END
     end
@@ -2004,7 +1990,6 @@ class Red::MethodCompiler
                        :enumerator_initialize, :elem_initialize, :req_initialize,
                        :view_initialize
       <<-END
-        rb_define_method(rb_cView, "initialize", view_initialize, 1);
         rb_define_method(rb_cRequest, "initialize", req_initialize, -1);
         rb_define_method(rb_cTime, "initialize", time_init, 0);
         rb_define_method(rb_cElement, "initialize", elem_initialize, 1);
@@ -2233,13 +2218,6 @@ class Red::MethodCompiler
       $mc.add_function :rb_obj_is_kind_of
       <<-END
         rb_define_method(rb_mKernel, 'kind_of?', rb_obj_is_kind_of, 1);
-      END
-    end
-    
-    def kvc_accessor
-      $mc.add_function :view_s_kvc_accessor, :rb_define_singleton_method
-      <<-END
-        rb_define_singleton_method(rb_cView, "kvc_accessor", view_s_kvc_accessor, -1);
       END
     end
     
@@ -4343,17 +4321,6 @@ class Red::MethodCompiler
       END
     end
     
-    #
-    def Init_Controller
-      add_function :rb_define_class, :rb_def_alloc_func, :controller_alloc
-      <<-END
-        function Init_Controller() {
-          rb_cController = rb_define_class("Controller", rb_cObject);
-          rb_define_alloc_func(rb_cController, controller_alloc);
-        }
-      END
-    end
-    
     # verbatim
     def Init_Data
       add_function :rb_define_class, :rb_undef_alloc_func
@@ -5103,16 +5070,6 @@ class Red::MethodCompiler
       END
     end
     
-    #
-    def Init_View
-      add_function :rb_define_class
-      <<-END
-        function Init_View() {
-          rb_cView = rb_define_class("View", rb_cObject);
-        }
-      END
-    end
-    
     # need to move method defs to class << Ruby
     def Init_Window
       add_function :rb_define_module, :win_document, :win_window
@@ -5141,8 +5098,7 @@ class Red::MethodCompiler
                     :Init_Document, :Init_Element, :Init_Method,
                     :Init_UnboundMethod, :Init_MatchData, :Init_Event,
                     :Init_Browser, :Init_CodeEvent, :Init_Request,
-                    :Init_Response, :Init_accessors, :Init_st,
-                    :Init_View, :Init_Controller
+                    :Init_Response, :Init_accessors, :Init_st
       <<-END
         function rb_call_inits() {
           Init_st();
@@ -5192,9 +5148,6 @@ class Red::MethodCompiler
           Init_Request();
           Init_Response();
           Init_accessors();
-          
-          Init_View();
-          Init_Controller();
         }
       END
     end
